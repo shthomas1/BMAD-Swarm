@@ -2,7 +2,6 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import yaml from 'js-yaml';
 import { getProjectPaths } from '../utils/paths.js';
-import { AGENT_NAMES } from '../utils/config.js';
 
 /**
  * Register the status command with the CLI program.

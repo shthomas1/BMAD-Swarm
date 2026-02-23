@@ -1,7 +1,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { PACKAGE_TEMPLATES_DIR } from '../utils/paths.js';
-import { AGENT_NAMES } from '../utils/config.js';
+import { getAgentNames } from '../utils/config.js';
 import { writeGeneratedFile, isFileManuallyModified } from '../utils/fs-helpers.js';
 import { render } from '../utils/template.js';
 
@@ -50,7 +50,7 @@ function buildTemplateData(config) {
     .filter(([_, phase]) => phase.enabled)
     .map(([name]) => name);
 
-  const enabledAgents = AGENT_NAMES.filter(name => {
+  const enabledAgents = getAgentNames().filter(name => {
     const agentConfig = config.agents?.[name];
     return agentConfig?.enabled !== false;
   });

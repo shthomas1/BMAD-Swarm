@@ -1,4 +1,4 @@
-import { AGENT_NAMES } from './config.js';
+import { getAgentNames } from './config.js';
 
 const VALID_PROJECT_TYPES = ['web-app', 'api', 'cli', 'library', 'mobile', 'monorepo', 'other'];
 const VALID_AUTONOMY_LEVELS = ['auto', 'guided', 'collaborative'];
@@ -51,8 +51,8 @@ export function validateConfig(config) {
   // Agent validation
   if (config.agents) {
     for (const name of Object.keys(config.agents)) {
-      if (!AGENT_NAMES.includes(name)) {
-        errors.push(`agents.${name} is not a recognized agent. Valid agents: ${AGENT_NAMES.join(', ')}`);
+      if (!getAgentNames().includes(name)) {
+        errors.push(`agents.${name} is not a recognized agent. Valid agents: ${getAgentNames().join(', ')}`);
       }
     }
   }

@@ -12,6 +12,7 @@ import { generateRules } from '../generators/rules-generator.js';
 import { generateSystemPrompt } from '../generators/system-prompt-generator.js';
 import { loadSwarmConfig } from '../utils/config.js';
 import { runScan } from './scan.js';
+import { generateGitHubWorkflow } from '../generators/github-actions-generator.js';
 
 /**
  * Register the init command with the CLI program.
@@ -24,6 +25,7 @@ export function registerInitCommand(program) {
     .option('--scan', 'Analyze existing codebase and auto-detect language, framework, and testing setup')
     .option('--template <name>', 'Use a predefined stack template (next-app, express-api, react-app, node-cli, python-api)')
     .option('-y, --yes', 'Accept all defaults without interactive prompts')
+    .option('--github', 'Generate GitHub Actions workflow for artifact validation')
     .addHelpText('after', `
 Examples:
   $ bmad-swarm init                       Interactive setup with prompts
@@ -107,12 +109,12 @@ async function runInit(options) {
   console.log(`  \u2713 Generated .claude/agents/ (${agentResult.generated.length} agents)`);
 
   // 4. Generate .claude/settings.json
-  generateSettings(paths);
+  generateSettings(config, paths);
   console.log('  \u2713 Generated .claude/settings.json');
 
   // 5. Generate .claude/hooks/
-  const hookPaths = generateHooks(config, paths);
-  console.log(`  \u2713 Generated .claude/hooks/ (${hookPaths.length} hooks)`);
+  const hookResult = generateHooks(config, paths);
+  console.log(`  \u2713 Generated .claude/hooks/ (${hookResult.generated.length} hooks)`);
 
   // 6. Generate .claude/rules/
   const rulesResult = generateRules(config, paths);
@@ -140,6 +142,12 @@ async function runInit(options) {
 
   // 10. Create overrides directory
   ensureDir(paths.overridesAgentsDir);
+
+  // 11. Generate GitHub Actions workflow if requested
+  if (options.github) {
+    const workflowPath = generateGitHubWorkflow(projectRoot);
+    console.log(`  \u2713 Generated ${workflowPath}`);
+  }
 
   // Display cost estimate
   const { estimateCost } = await import('../utils/cost-estimator.js');

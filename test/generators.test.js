@@ -5,10 +5,11 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { getProjectPaths } from '../utils/paths.js';
 import { loadSwarmConfig } from '../utils/config.js';
-import { generateAgents, ejectAgent, unejectAgent } from '../generators/agent-generator.js';
+import { generateAgents, ejectAgent, unejectAgent, applyModelFrontmatter } from '../generators/agent-generator.js';
 import { generateClaudeMd } from '../generators/claude-md-generator.js';
 import { generateSystemPrompt } from '../generators/system-prompt-generator.js';
 import { generateHooks } from '../generators/hooks-generator.js';
+import { isFileManuallyModified } from '../utils/fs-helpers.js';
 
 describe('Generators', () => {
   const tmpDir = join(tmpdir(), 'bmad-test-gen-' + Date.now());
@@ -48,8 +49,8 @@ stack:
         assert.ok(existsSync(filePath), `Agent file should exist: ${agentName}.md`);
 
         const content = readFileSync(filePath, 'utf8');
-        assert.ok(content.includes('Project Info'), 'Should include project context');
-        assert.ok(content.includes('test-project'), 'Should include project name');
+        assert.ok(!content.includes('Project Info'), 'Should not include Project Info section (removed for token savings)');
+        assert.ok(!content.includes('test-project'), 'Should not include project name in agent file');
       }
     });
 
@@ -77,7 +78,7 @@ stack:
 
       const content = readFileSync(filePath, 'utf8');
       assert.ok(content.includes('Ideator'), 'Should contain Ideator title');
-      assert.ok(content.includes('Project Info'), 'Should include project context');
+      assert.ok(!content.includes('Project Info'), 'Should not include Project Info section (removed for token savings)');
     });
 
     it('can disable ideator agent', () => {
@@ -139,6 +140,208 @@ agents:
 
       const devContent = readFileSync(join(paths.agentsDir, 'developer.md'), 'utf8');
       assert.ok(devContent.includes('Always use semicolons'), 'Should include extra context');
+    });
+
+    it('adds model frontmatter when model is specified in config', () => {
+      const projectDir = join(tmpDir, 'agent-test-model-fm');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: model-test
+  type: web-app
+stack:
+  language: JavaScript
+agents:
+  developer:
+    model: sonnet
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const devContent = readFileSync(join(paths.agentsDir, 'developer.md'), 'utf8');
+      // Should have YAML frontmatter with model field (after the bmad-generated hash)
+      assert.ok(devContent.includes('---'), 'Should contain frontmatter delimiters');
+      assert.ok(devContent.includes('model: sonnet'), 'Should contain model field in frontmatter');
+      // Should NOT have the old HTML comment approach
+      assert.ok(!devContent.includes('<!-- preferred-model:'), 'Should not use old HTML comment approach');
+    });
+
+    it('does not add model frontmatter when no model specified', () => {
+      const projectDir = join(tmpDir, 'agent-test-no-model');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: no-model-test
+  type: web-app
+stack:
+  language: JavaScript
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const devContent = readFileSync(join(paths.agentsDir, 'developer.md'), 'utf8');
+      // Should NOT have frontmatter
+      assert.ok(!devContent.includes('model:'), 'Should not contain model field when not configured');
+    });
+
+    it('replaces existing model key in frontmatter instead of duplicating', () => {
+      // Case 1: Content already has frontmatter with model: key
+      const withModel = '---\nmodel: haiku\ndescription: custom\n---\n# Agent\nContent here\n';
+      const result1 = applyModelFrontmatter(withModel, 'sonnet');
+      const modelCount1 = (result1.match(/^model:/gm) || []).length;
+      assert.equal(modelCount1, 1, 'Should have exactly one model: key when replacing existing');
+      assert.ok(result1.includes('model: sonnet'), 'Should have new model value');
+      assert.ok(!result1.includes('model: haiku'), 'Should not have old model value');
+
+      // Case 2: Content has frontmatter without model: key
+      const withoutModel = '---\ndescription: custom\n---\n# Agent\nContent here\n';
+      const result2 = applyModelFrontmatter(withoutModel, 'opus');
+      const modelCount2 = (result2.match(/^model:/gm) || []).length;
+      assert.equal(modelCount2, 1, 'Should have exactly one model: key when adding new');
+      assert.ok(result2.includes('model: opus'), 'Should have model: opus');
+
+      // Case 3: Content has no frontmatter
+      const noFm = '# Agent\nContent here\n';
+      const result3 = applyModelFrontmatter(noFm, 'sonnet');
+      assert.ok(result3.startsWith('---\nmodel: sonnet\n---\n'), 'Should prepend new frontmatter');
+    });
+
+    it('model frontmatter works with hash-based modification detection', () => {
+      const projectDir = join(tmpDir, 'agent-test-model-hash');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: hash-test
+  type: web-app
+stack:
+  language: JavaScript
+agents:
+  developer:
+    model: opus
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const devPath = join(paths.agentsDir, 'developer.md');
+      const content = readFileSync(devPath, 'utf8');
+      // Hash should be the first line
+      assert.ok(content.startsWith('<!-- bmad-generated:'), 'Hash should come first');
+      // Frontmatter should come after the hash
+      const afterHash = content.split('\n').slice(1).join('\n');
+      assert.ok(afterHash.startsWith('---\n'), 'Frontmatter should start after hash line');
+
+      // Running again should not flag as manually modified
+      assert.ok(!isFileManuallyModified(devPath), 'Should not be detected as manually modified');
+    });
+
+    it('orchestrator agent contains merged rule content', () => {
+      const projectDir = join(tmpDir, 'agent-test-orch-rules');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: orch-test
+  type: web-app
+stack:
+  language: TypeScript
+methodology:
+  autonomy: guided
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const orchPath = join(paths.agentsDir, 'orchestrator.md');
+      const content = readFileSync(orchPath, 'utf8');
+
+      // Should contain identity content (from former orchestrator-identity.md)
+      assert.ok(content.includes('Agent Team'), 'Should contain Agent Team table from identity rules');
+      assert.ok(content.includes('Anti-Patterns'), 'Should contain Anti-Patterns section from identity rules');
+      assert.ok(content.includes('Terminology'), 'Should contain Terminology section from identity rules');
+
+      // Should contain methodology content (from former orchestrator-methodology.md)
+      assert.ok(content.includes('MANDATORY Entry Point Routing'), 'Should contain Entry Point Routing from methodology rules');
+      assert.ok(content.includes('Orchestration Modes'), 'Should contain Orchestration Modes from methodology rules');
+      assert.ok(content.includes('Multi-Perspective Review'), 'Should contain Multi-Perspective Review from methodology rules');
+    });
+
+    it('orchestrator agent has no duplicate section headers', () => {
+      const projectDir = join(tmpDir, 'agent-test-orch-dedup');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: dedup-test
+  type: web-app
+stack:
+  language: TypeScript
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const orchPath = join(paths.agentsDir, 'orchestrator.md');
+      const content = readFileSync(orchPath, 'utf8');
+
+      // Count occurrences of key section headers - each should appear exactly once
+      const countMatches = (str, regex) => (str.match(regex) || []).length;
+
+      assert.equal(countMatches(content, /#+\s+Complexity Scoring/g), 1, 'Complexity Scoring should appear once');
+      assert.equal(countMatches(content, /#+\s+Team Composition by Complexity/g), 1, 'Team Composition should appear once');
+      assert.equal(countMatches(content, /#+\s+Phase Skip Rules/g), 1, 'Phase Skip Rules should appear once');
+      assert.equal(countMatches(content, /#+\s+Autonomy Override Rules/g), 1, 'Autonomy Override Rules should appear once');
+      assert.equal(countMatches(content, /#+\s+Handling Rejections/g), 1, 'Handling Rejections should appear once');
+      assert.equal(countMatches(content, /#+\s+Orchestration Modes/g), 1, 'Orchestration Modes should appear once');
+      assert.equal(countMatches(content, /#+\s+Multi-Perspective Review/g), 1, 'Multi-Perspective Review should appear once');
+
+      // After dedup: abbreviated behavioral rules should be replaced by structured sections
+      // The inline "Determine the entry point" should not exist alongside the structured "MANDATORY Entry Point Routing"
+      assert.ok(!content.includes('**Determine the entry point.**'), 'Abbreviated entry point rule should be removed in favor of structured Entry Point Routing');
+      assert.ok(!content.includes('**Select the orchestration mode.**'), 'Abbreviated mode selection rule should be removed in favor of structured Orchestration Modes');
+      assert.ok(!content.includes('**Multi-perspective review for high-complexity projects.**'), 'Abbreviated multi-perspective rule should be removed in favor of structured section');
+    });
+
+    it('orchestrator agent includes model selection guidance', () => {
+      const projectDir = join(tmpDir, 'agent-test-model-guidance');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, `
+project:
+  name: model-guidance-test
+  type: web-app
+stack:
+  language: JavaScript
+`);
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+
+      const orchPath = join(paths.agentsDir, 'orchestrator.md');
+      const content = readFileSync(orchPath, 'utf8');
+
+      assert.ok(content.includes('Model Selection'), 'Should contain Model Selection section');
+      assert.ok(content.includes('Sonnet 4.6'), 'Should mention Sonnet 4.6 as default');
+      assert.ok(content.includes('claude-sonnet-4-6'), 'Should include Sonnet model ID');
+      assert.ok(content.includes('Opus'), 'Should mention Opus availability');
+      assert.ok(content.includes('claude-opus-4-6'), 'Should include Opus model ID');
     });
 
     it('uses ejected override when present', () => {
@@ -608,6 +811,7 @@ stack:
       assert.ok(content.includes('IDENTITY REMINDER'), 'Should contain identity reminder text');
       assert.ok(content.includes('orchestrator'), 'Should reference orchestrator role');
       assert.ok(content.includes('session-test'), 'Should include project name');
+      assert.ok(content.includes('.claude/agents/orchestrator.md'), 'Should reference orchestrator agent file, not rules');
     });
 
     it('generates orchestrator-post-tool hook for code dir enforcement', () => {

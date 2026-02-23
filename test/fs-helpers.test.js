@@ -152,5 +152,31 @@ describe('FS Helpers', () => {
       writeFileSync(filePath, '# No hash header\nJust plain content\n');
       assert.equal(isFileManuallyModified(filePath), false);
     });
+
+    it('returns false for unmodified JSON file with _bmadGenerated hash', () => {
+      const filePath = join(tmpDir, 'unmodified.json');
+      const data = { key: 'value' };
+      const contentWithoutHash = JSON.stringify(data, null, 2) + '\n';
+      const hash = contentHash(contentWithoutHash);
+      const output = { _bmadGenerated: hash, ...data };
+      writeFileSync(filePath, JSON.stringify(output, null, 2) + '\n');
+      assert.equal(isFileManuallyModified(filePath), false);
+    });
+
+    it('returns true for modified JSON file with _bmadGenerated hash', () => {
+      const filePath = join(tmpDir, 'modified.json');
+      const data = { key: 'value' };
+      const contentWithoutHash = JSON.stringify(data, null, 2) + '\n';
+      const hash = contentHash(contentWithoutHash);
+      const output = { _bmadGenerated: hash, ...data };
+      writeFileSync(filePath, JSON.stringify(output, null, 2) + '\n');
+
+      // Manually modify
+      const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+      parsed.extra = 'user-added';
+      writeFileSync(filePath, JSON.stringify(parsed, null, 2) + '\n');
+
+      assert.equal(isFileManuallyModified(filePath), true);
+    });
   });
 });

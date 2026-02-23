@@ -88,6 +88,16 @@ export function getHooksConfig() {
         hooks: [{ type: 'command', command: 'node .claude/hooks/identity-reinject.cjs' }],
       },
     ],
+    TaskCompleted: [
+      {
+        hooks: [{ type: 'command', command: 'node .claude/hooks/TaskCompleted.cjs' }],
+      },
+    ],
+    TeammateIdle: [
+      {
+        hooks: [{ type: 'command', command: 'node .claude/hooks/TeammateIdle.cjs' }],
+      },
+    ],
   };
 }
 
@@ -280,7 +290,7 @@ function generateIdentityReinjectHook(config) {
 // Ensures the orchestrator remembers its role after context is compressed.
 
 const output = JSON.stringify({
-  additionalContext: 'IDENTITY REMINDER: You are the orchestrator of ' + ${JSON.stringify(projectName)} + '. Use TeamCreate to spawn teammates. Do NOT use Task tool with subagent_type=Explore for delegated work. Follow the entry point table in .claude/rules/orchestrator-methodology.md.',
+  additionalContext: 'IDENTITY REMINDER: You are the orchestrator of ' + ${JSON.stringify(projectName)} + '. Use TeamCreate to spawn teammates. Do NOT use Task tool with subagent_type=Explore for delegated work. Follow the entry point table in .claude/agents/orchestrator.md.',
 });
 process.stdout.write(output);
 process.exit(0);

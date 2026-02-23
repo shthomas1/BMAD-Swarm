@@ -144,6 +144,7 @@ bmad-swarm init [options]
 | `--scan` | Auto-detect language, framework, and test setup from existing codebase |
 | `--template <name>` | Use a predefined stack template |
 | `-y, --yes` | Accept all defaults without interactive prompts |
+| `--github` | Generate GitHub Actions workflow for artifact validation (`.github/workflows/bmad-validate.yml`) |
 
 **Available templates:**
 
@@ -167,14 +168,20 @@ bmad-swarm start [options]
 |------|-------------|
 | `--print` | Print the claude command instead of running it |
 | `--dangerous` | Launch in dangerously-skip-permissions mode (skips all permission prompts) |
+| `--allow-tools` | Allow all tools (disables the default `--disallowedTools` restriction that excludes Edit, Write, MultiEdit, NotebookEdit, NotebookRead, WebSearch, WebFetch) |
 
 ### `bmad-swarm update`
 
 Regenerate all managed files from `swarm.yaml` including agents, CLAUDE.md, system prompt, hooks, rules, and settings. Safe to run repeatedly -- never touches user-owned files (`swarm.yaml`, `overrides/`, `artifacts/`, `src/`).
 
 ```bash
-bmad-swarm update [--dry-run]
+bmad-swarm update [options]
 ```
+
+| Flag | Description |
+|------|-------------|
+| `--dry-run` | Preview what would be regenerated without writing any files |
+| `--force` | Overwrite files even if they have been manually modified |
 
 ### `bmad-swarm eject agent <name>`
 
@@ -304,7 +311,7 @@ methodology:
 agents:
   orchestrator:
     # enabled: true             # Disable an agent entirely (boolean)
-    # model: opus               # Preferred model hint (string)
+    # model: sonnet             # Preferred model hint (string: haiku, sonnet, opus, inherit)
     # extra_context: ""         # Appended to the agent's prompt (string)
     # extra_rules: []           # Additional behavioral rules (string[])
   # researcher: { ... }

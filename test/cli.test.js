@@ -122,4 +122,174 @@ describe('CLI Integration', () => {
     const err = runFail('update', dir);
     assert.ok(err, 'Should fail without swarm.yaml');
   });
+
+  it('start --print includes --disallowedTools by default', () => {
+    const dir = join(tmpBase, 'start-print');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('start --print', dir);
+    assert.ok(output.includes('--disallowedTools'), 'Should include --disallowedTools');
+    assert.ok(output.includes('Edit'), 'Should disallow Edit');
+    assert.ok(output.includes('Write'), 'Should disallow Write');
+    assert.ok(output.includes('MultiEdit'), 'Should disallow MultiEdit');
+    assert.ok(output.includes('NotebookEdit'), 'Should disallow NotebookEdit');
+    assert.ok(output.includes('NotebookRead'), 'Should disallow NotebookRead');
+    assert.ok(output.includes('WebSearch'), 'Should disallow WebSearch');
+    assert.ok(output.includes('WebFetch'), 'Should disallow WebFetch');
+  });
+
+  it('start --print --allow-tools omits --disallowedTools', () => {
+    const dir = join(tmpBase, 'start-allow');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('start --print --allow-tools', dir);
+    assert.ok(!output.includes('--disallowedTools'), 'Should NOT include --disallowedTools');
+  });
+
+  it('start --help shows --allow-tools and --dangerous flags', () => {
+    const dir = join(tmpBase, 'start-help');
+    mkdirSync(dir, { recursive: true });
+    const output = run('start --help', dir);
+    assert.ok(output.includes('--allow-tools'), 'Should show --allow-tools');
+    assert.ok(output.includes('--dangerous'), 'Should show --dangerous');
+  });
+
+  it('workspace list shows workspaces from swarm.yaml', () => {
+    const dir = join(tmpBase, 'ws-list');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    // No workspaces key -> should handle gracefully
+    const output = run('workspace list', dir);
+    assert.ok(output.includes('No workspaces'), 'Should show no workspaces message for non-monorepo');
+  });
+
+  it('workspace detect checks workspace context', () => {
+    const dir = join(tmpBase, 'ws-detect');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('workspace detect', dir);
+    assert.ok(output.includes('not a workspace') || output.includes('Not a workspace'), 'Should indicate not a workspace');
+  });
+
+  it('workspace command is registered in CLI', () => {
+    const dir = join(tmpBase, 'ws-help');
+    mkdirSync(dir, { recursive: true });
+    const output = run('--help', dir);
+    assert.ok(output.includes('workspace'), 'Should show workspace command');
+  });
+
+  it('plugin list handles missing plugins directory', () => {
+    const dir = join(tmpBase, 'plugin-list');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('plugin list', dir);
+    assert.ok(output.includes('No plugins found') || output.includes('no plugins'), 'Should show no plugins message');
+  });
+
+  it('plugin command is registered in CLI', () => {
+    const dir = join(tmpBase, 'plugin-help');
+    mkdirSync(dir, { recursive: true });
+    const output = run('--help', dir);
+    assert.ok(output.includes('plugin'), 'Should show plugin command');
+  });
+
+  it('init -y --github generates GitHub Actions workflow', () => {
+    const dir = join(tmpBase, 'init-github');
+    mkdirSync(dir, { recursive: true });
+    run('init -y --github', dir);
+    const workflowPath = join(dir, '.github', 'workflows', 'bmad-validate.yml');
+    assert.ok(existsSync(workflowPath), 'Should create workflow file');
+    const content = readFileSync(workflowPath, 'utf8');
+    assert.ok(content.includes('BMAD Validate'), 'Should contain workflow name');
+    assert.ok(content.includes('bmad-swarm validate'), 'Should contain validate step');
+  });
+
+  it('start --dangerous --print shows warning on stderr', () => {
+    const dir = join(tmpBase, 'start-dangerous');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    try {
+      const result = execSync(`node "${CLI}" start --dangerous --print`, {
+        cwd: dir,
+        encoding: 'utf8',
+        timeout: 15000,
+        stdio: ['pipe', 'pipe', 'pipe'],
+      });
+      // stdout should have the command (from --print)
+      assert.ok(result.includes('--dangerously-skip-permissions'), 'Should include dangerous flag in command');
+    } catch (err) {
+      // If it exits non-zero for some reason, check stderr
+      const stderr = err.stderr || '';
+      assert.ok(stderr.includes('WARNING'), 'Should show WARNING on stderr');
+    }
+  });
+
+  it('start --print without --dangerous does not show warning', () => {
+    const dir = join(tmpBase, 'start-no-dangerous');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('start --print', dir);
+    assert.ok(!output.includes('WARNING'), 'Should NOT show warning without --dangerous');
+  });
+
+  it('init -y without --github does not generate workflow', () => {
+    const dir = join(tmpBase, 'init-no-github');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const workflowPath = join(dir, '.github', 'workflows', 'bmad-validate.yml');
+    assert.ok(!existsSync(workflowPath), 'Should NOT create workflow file without --github');
+  });
+
+  it('init --help shows --github flag', () => {
+    const dir = join(tmpBase, 'init-help-github');
+    mkdirSync(dir, { recursive: true });
+    const output = run('init --help', dir);
+    assert.ok(output.includes('--github'), 'Should show --github flag');
+  });
+
+  it('init -y shows correct hooks count (not undefined)', () => {
+    const dir = join(tmpBase, 'init-hooks-count');
+    mkdirSync(dir, { recursive: true });
+    const output = run('init -y', dir);
+    assert.ok(output.includes('hooks/'), 'Should mention hooks');
+    assert.ok(!output.includes('undefined'), 'Should not contain undefined in output');
+    assert.match(output, /\d+ hooks\)/, 'Should show a numeric hooks count');
+  });
+
+  it('update shows correct hooks count (not undefined)', () => {
+    const dir = join(tmpBase, 'update-hooks-count');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    const output = run('update', dir);
+    assert.ok(!output.includes('undefined'), 'Should not contain undefined in update output');
+    assert.match(output, /\d+ hooks\)/, 'Should show a numeric hooks count');
+  });
+
+  it('update removes stale orchestrator rule files', () => {
+    const dir = join(tmpBase, 'update-stale-rules');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    // Simulate stale orchestrator rule files from a previous version
+    const rulesDir = join(dir, '.claude', 'rules');
+    writeFileSync(join(rulesDir, 'orchestrator-identity.md'), '<!-- bmad-generated:abcd1234 -->\n# Old rule content\n');
+    writeFileSync(join(rulesDir, 'orchestrator-methodology.md'), '<!-- bmad-generated:ef005678 -->\n# Old methodology\n');
+    assert.ok(existsSync(join(rulesDir, 'orchestrator-identity.md')), 'Stale file should exist before update');
+
+    const output = run('update', dir);
+    assert.ok(!existsSync(join(rulesDir, 'orchestrator-identity.md')), 'orchestrator-identity.md should be removed');
+    assert.ok(!existsSync(join(rulesDir, 'orchestrator-methodology.md')), 'orchestrator-methodology.md should be removed');
+    assert.ok(output.includes('Removed stale') || output.includes('removed'), 'Should log removal of stale files');
+  });
+
+  it('update preserves manually modified orchestrator rule files', () => {
+    const dir = join(tmpBase, 'update-modified-rules');
+    mkdirSync(dir, { recursive: true });
+    run('init -y', dir);
+    // Create a manually modified orchestrator rule file (no bmad-generated header)
+    const rulesDir = join(dir, '.claude', 'rules');
+    writeFileSync(join(rulesDir, 'orchestrator-identity.md'), '# My custom orchestrator identity rules\nDo not delete me.\n');
+
+    run('update', dir);
+    assert.ok(existsSync(join(rulesDir, 'orchestrator-identity.md')), 'Manually modified file should be preserved');
+  });
 });

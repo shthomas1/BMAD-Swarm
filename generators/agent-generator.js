@@ -1,7 +1,7 @@
 import { readFileSync, readdirSync, existsSync, unlinkSync } from 'node:fs';
 import { join, basename } from 'node:path';
 import { PACKAGE_AGENTS_DIR } from '../utils/paths.js';
-import { AGENT_NAMES } from '../utils/config.js';
+import { getAgentNames } from '../utils/config.js';
 import { writeFileSafe, ensureDir, readFileSafe, writeGeneratedFile, isFileManuallyModified } from '../utils/fs-helpers.js';
 
 /**
@@ -23,7 +23,7 @@ export function generateAgents(config, projectPaths, options = {}) {
   const skipped = [];
   const modified = [];
 
-  for (const agentName of AGENT_NAMES) {
+  for (const agentName of getAgentNames()) {
     // Check if agent is disabled in config
     const agentConfig = config.agents?.[agentName];
     if (agentConfig?.enabled === false) {
@@ -60,9 +60,6 @@ export function generateAgents(config, projectPaths, options = {}) {
       content = applyAgentOverrides(content, agentConfig, agentName, config);
     }
 
-    // Inject project context section
-    content = injectProjectContext(content, config);
-
     writeGeneratedFile(outputPath, content);
     generated.push(agentName);
   }
@@ -92,50 +89,38 @@ function applyAgentOverrides(content, agentConfig, agentName, config) {
     }
   }
 
-  // Add model preference as a comment if specified
+  // Add model as YAML frontmatter if specified
   if (agentConfig.model) {
-    content = `<!-- preferred-model: ${agentConfig.model} -->\n${content}`;
+    content = applyModelFrontmatter(content, agentConfig.model);
   }
 
   return content;
 }
 
 /**
- * Inject project context into agent template (project name, type, stack info).
- * Strips any existing Project Info section first to prevent duplicates.
- * @param {string} content - Agent template content
- * @param {object} config - Full swarm config
- * @returns {string} Content with project context injected
+ * Apply a model field to content as YAML frontmatter.
+ * If content already has frontmatter with a model: key, replaces it.
+ * If content has frontmatter without model:, adds the key.
+ * If content has no frontmatter, prepends a new frontmatter block.
+ * @param {string} content - Agent file content
+ * @param {string} model - Model value (e.g., 'sonnet', 'opus', 'haiku')
+ * @returns {string} Content with model frontmatter applied
  */
-function injectProjectContext(content, config) {
-  // Strip any existing Project Info section(s) to prevent duplicates.
-  // Project Info is always the last section, so strip from first occurrence to EOF.
-  content = content.replace(/\n+## Project Info\n[\s\S]*$/, '');
-  // Remove trailing whitespace left after stripping
-  content = content.trimEnd();
-
-  const contextLines = [];
-  contextLines.push(`## Project Info`);
-  contextLines.push('');
-  contextLines.push(`- **Project**: ${config.project.name}`);
-  if (config.project.description) {
-    contextLines.push(`- **Description**: ${config.project.description}`);
+export function applyModelFrontmatter(content, model) {
+  if (content.startsWith('---\n')) {
+    const endIdx = content.indexOf('\n---\n', 4);
+    if (endIdx !== -1) {
+      const existingFm = content.slice(4, endIdx);
+      const rest = content.slice(endIdx + 5);
+      // Replace existing model: key or append new one
+      if (/^model:\s*.*/m.test(existingFm)) {
+        const updatedFm = existingFm.replace(/^model:\s*.*$/m, `model: ${model}`);
+        return `---\n${updatedFm}\n---\n${rest}`;
+      }
+      return `---\n${existingFm}\nmodel: ${model}\n---\n${rest}`;
+    }
   }
-  contextLines.push(`- **Type**: ${config.project.type}`);
-  if (config.stack.language) {
-    contextLines.push(`- **Language**: ${config.stack.language}`);
-  }
-  if (config.stack.framework) {
-    contextLines.push(`- **Framework**: ${config.stack.framework}`);
-  }
-  if (config.stack.database) {
-    contextLines.push(`- **Database**: ${config.stack.database}`);
-  }
-  contextLines.push(`- **Artifacts**: ${config.output.artifacts_dir}`);
-  contextLines.push(`- **Code**: ${config.output.code_dir}`);
-  contextLines.push(`- **Autonomy**: ${config.methodology.autonomy}`);
-
-  return content + '\n\n' + contextLines.join('\n') + '\n';
+  return `---\nmodel: ${model}\n---\n${content}`;
 }
 
 /**
@@ -145,8 +130,8 @@ function injectProjectContext(content, config) {
  * @returns {string} Path to the ejected file
  */
 export function ejectAgent(agentName, projectPaths) {
-  if (!AGENT_NAMES.includes(agentName)) {
-    throw new Error(`Unknown agent: "${agentName}". Valid agents: ${AGENT_NAMES.join(', ')}`);
+  if (!getAgentNames().includes(agentName)) {
+    throw new Error(`Unknown agent: "${agentName}". Valid agents: ${getAgentNames().join(', ')}`);
   }
 
   const packageTemplatePath = join(PACKAGE_AGENTS_DIR, `${agentName}.md`);
@@ -174,8 +159,8 @@ export function ejectAgent(agentName, projectPaths) {
  * @param {object} projectPaths - Project paths
  */
 export function unejectAgent(agentName, projectPaths) {
-  if (!AGENT_NAMES.includes(agentName)) {
-    throw new Error(`Unknown agent: "${agentName}". Valid agents: ${AGENT_NAMES.join(', ')}`);
+  if (!getAgentNames().includes(agentName)) {
+    throw new Error(`Unknown agent: "${agentName}". Valid agents: ${getAgentNames().join(', ')}`);
   }
 
   const ejectedPath = join(projectPaths.overridesAgentsDir, `${agentName}.md`);

@@ -58,16 +58,17 @@ methodology:
     const { config, paths } = makeProject('rules-expected');
     const result = generateRules(config, paths);
 
-    // There are 4 rule templates
+    // There are 2 rule templates (orchestrator rules moved to agent file)
     const expectedRules = [
       'coding-standards.md',
-      'orchestrator-identity.md',
-      'orchestrator-methodology.md',
       'quality-standards.md',
     ];
     for (const rule of expectedRules) {
       assert.ok(result.generated.includes(rule), `Should generate ${rule}`);
     }
+    // Orchestrator rules should NOT be generated as rule files
+    assert.ok(!result.generated.includes('orchestrator-identity.md'), 'Should not generate orchestrator-identity.md');
+    assert.ok(!result.generated.includes('orchestrator-methodology.md'), 'Should not generate orchestrator-methodology.md');
   });
 
   it('substitutes template variables correctly', () => {

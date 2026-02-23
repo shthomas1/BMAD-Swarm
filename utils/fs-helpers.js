@@ -100,6 +100,20 @@ export function isFileManuallyModified(filePath) {
     }
   }
 
+  // Try JSON _bmadGenerated key
+  if (filePath.endsWith('.json')) {
+    try {
+      const parsed = JSON.parse(existing);
+      if (parsed._bmadGenerated) {
+        const { _bmadGenerated, ...rest } = parsed;
+        const contentWithoutHash = JSON.stringify(rest, null, 2) + '\n';
+        return _bmadGenerated !== contentHash(contentWithoutHash);
+      }
+    } catch {
+      // Not valid JSON, fall through
+    }
+  }
+
   return false; // No hash header = pre-hash file, allow overwrite
 }
 

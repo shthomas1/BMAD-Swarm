@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { getProjectPaths } from '../utils/paths.js';
-import { loadSwarmConfig, AGENT_NAMES } from '../utils/config.js';
+import { loadSwarmConfig, getAgentNames } from '../utils/config.js';
 import { readFileSafe } from '../utils/fs-helpers.js';
 
 export function registerDoctorCommand(program) {
@@ -36,7 +36,7 @@ async function runDoctor() {
       check(true, 'swarm.yaml exists and is valid');
 
       // 3. Agent files
-      const enabledAgents = AGENT_NAMES.filter(name => {
+      const enabledAgents = getAgentNames().filter(name => {
         const agentConfig = config.agents?.[name];
         return agentConfig?.enabled !== false;
       });
@@ -124,7 +124,7 @@ async function runDoctor() {
   // 9. Orphaned overrides
   if (existsSync(paths.overridesAgentsDir)) {
     const overrides = readdirSync(paths.overridesAgentsDir).filter(f => f.endsWith('.md'));
-    const orphaned = overrides.filter(f => !AGENT_NAMES.includes(f.replace('.md', '')));
+    const orphaned = overrides.filter(f => !getAgentNames().includes(f.replace('.md', '')));
     if (orphaned.length === 0) {
       check(true, 'No orphaned override files');
     } else {

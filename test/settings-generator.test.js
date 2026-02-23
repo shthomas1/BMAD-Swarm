@@ -18,71 +18,110 @@ describe('Settings Generator', () => {
     rmSync(tmpDir, { recursive: true, force: true });
   });
 
-  it('generates valid JSON settings file', () => {
-    const projectDir = join(tmpDir, 'settings-test-1');
+  function makeProject(name) {
+    const projectDir = join(tmpDir, name);
     mkdirSync(projectDir, { recursive: true });
-
     const configPath = join(projectDir, 'swarm.yaml');
     writeFileSync(configPath, 'project:\n  name: test\nstack:\n  language: JS\n');
-
     const config = loadSwarmConfig(configPath);
     const paths = getProjectPaths(projectDir);
-    const resultPath = generateSettings(paths);
+    return { config, paths, projectDir };
+  }
 
-    assert.ok(existsSync(resultPath), 'settings.json should exist');
-    assert.equal(resultPath, paths.settingsJson, 'Should return the correct path');
+  it('generates valid JSON settings file', () => {
+    const { config, paths } = makeProject('settings-test-1');
+    const result = generateSettings(config, paths);
 
-    const content = readFileSync(resultPath, 'utf8');
+    assert.ok(existsSync(paths.settingsJson), 'settings.json should exist');
+    assert.equal(result.path, paths.settingsJson, 'Should return the correct path');
+
+    const content = readFileSync(paths.settingsJson, 'utf8');
     const parsed = JSON.parse(content);
     assert.ok(typeof parsed === 'object', 'Should be valid JSON object');
   });
 
   it('includes hooks configuration', () => {
-    const projectDir = join(tmpDir, 'settings-test-2');
-    mkdirSync(projectDir, { recursive: true });
-
-    const configPath = join(projectDir, 'swarm.yaml');
-    writeFileSync(configPath, 'project:\n  name: test\nstack:\n  language: JS\n');
-
-    const config = loadSwarmConfig(configPath);
-    const paths = getProjectPaths(projectDir);
-    generateSettings(paths);
+    const { config, paths } = makeProject('settings-test-2');
+    generateSettings(config, paths);
 
     const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
     assert.ok(content.hooks, 'Should have hooks section');
     assert.ok(content.hooks.PostToolUse, 'Should have PostToolUse hooks');
     assert.ok(content.hooks.Stop, 'Should have Stop hooks');
     assert.ok(content.hooks.SessionStart, 'Should have SessionStart hooks');
+    assert.ok(content.hooks.TaskCompleted, 'Should have TaskCompleted hooks');
+    assert.ok(content.hooks.TeammateIdle, 'Should have TeammateIdle hooks');
   });
 
   it('creates file at correct path inside .claude/', () => {
-    const projectDir = join(tmpDir, 'settings-test-3');
-    mkdirSync(projectDir, { recursive: true });
+    const { config, paths } = makeProject('settings-test-3');
+    const result = generateSettings(config, paths);
 
-    const configPath = join(projectDir, 'swarm.yaml');
-    writeFileSync(configPath, 'project:\n  name: test\nstack:\n  language: JS\n');
-
-    const config = loadSwarmConfig(configPath);
-    const paths = getProjectPaths(projectDir);
-    const resultPath = generateSettings(paths);
-
-    assert.ok(resultPath.includes('.claude'), 'Should be inside .claude directory');
-    assert.ok(resultPath.endsWith('settings.json'), 'Should end with settings.json');
+    assert.ok(result.path.includes('.claude'), 'Should be inside .claude directory');
+    assert.ok(result.path.endsWith('settings.json'), 'Should end with settings.json');
   });
 
   it('includes permissions section from template', () => {
-    const projectDir = join(tmpDir, 'settings-test-4');
-    mkdirSync(projectDir, { recursive: true });
-
-    const configPath = join(projectDir, 'swarm.yaml');
-    writeFileSync(configPath, 'project:\n  name: test\nstack:\n  language: JS\n');
-
-    const config = loadSwarmConfig(configPath);
-    const paths = getProjectPaths(projectDir);
-    generateSettings(paths);
+    const { config, paths } = makeProject('settings-test-4');
+    generateSettings(config, paths);
 
     const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
     assert.ok(content.permissions, 'Should have permissions section');
     assert.ok(Array.isArray(content.permissions.allow), 'Should have allow array');
+  });
+
+  it('embeds _bmadGenerated hash in settings.json', () => {
+    const { config, paths } = makeProject('settings-hash');
+    generateSettings(config, paths);
+
+    const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.ok(content._bmadGenerated, 'Should have _bmadGenerated key');
+    assert.match(content._bmadGenerated, /^[a-f0-9]{8}$/, 'Hash should be 8 hex chars');
+  });
+
+  it('skips writing when settings.json is manually modified', () => {
+    const { config, paths } = makeProject('settings-modified');
+
+    // First generation
+    generateSettings(config, paths);
+
+    // Manually modify: change a value but keep structure
+    const parsed = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    parsed.customKey = 'user-added';
+    writeFileSync(paths.settingsJson, JSON.stringify(parsed, null, 2) + '\n');
+
+    // Second generation should detect modification and skip
+    const result = generateSettings(config, paths);
+    assert.equal(result.modified, true, 'Should detect manual modification');
+
+    // Verify user's change is preserved
+    const afterContent = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.equal(afterContent.customKey, 'user-added', 'User change should be preserved');
+  });
+
+  it('overwrites when force option is set', () => {
+    const { config, paths } = makeProject('settings-force');
+
+    // First generation
+    generateSettings(config, paths);
+
+    // Manually modify
+    const parsed = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    parsed.customKey = 'user-added';
+    writeFileSync(paths.settingsJson, JSON.stringify(parsed, null, 2) + '\n');
+
+    // Force should overwrite
+    const result = generateSettings(config, paths, { force: true });
+    assert.equal(result.modified, false, 'Should overwrite when forced');
+
+    // Verify user's change is gone
+    const afterContent = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.equal(afterContent.customKey, undefined, 'User change should be removed');
+  });
+
+  it('returns modified: false on first generation', () => {
+    const { config, paths } = makeProject('settings-first-gen');
+    const result = generateSettings(config, paths);
+    assert.equal(result.modified, false, 'First generation should not be marked as modified');
   });
 });

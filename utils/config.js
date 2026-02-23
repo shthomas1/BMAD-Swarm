@@ -124,18 +124,3 @@ export function getAgentNames() {
   return _agentNamesCache;
 }
 
-/**
- * @deprecated Use getAgentNames() instead
- */
-export const AGENT_NAMES = (() => {
-  // Eagerly evaluate for backward compat
-  const agentsDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'agents');
-  try {
-    return readdirSync(agentsDir)
-      .filter(f => f.endsWith('.md'))
-      .map(f => f.replace('.md', ''))
-      .sort();
-  } catch {
-    return [];
-  }
-})();

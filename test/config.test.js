@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { writeFileSync, mkdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
-import { loadSwarmConfig, AGENT_NAMES } from '../utils/config.js';
+import { loadSwarmConfig, getAgentNames } from '../utils/config.js';
 
 describe('Config System', () => {
   const tmpDir = join(tmpdir(), 'bmad-test-config-' + Date.now());
@@ -79,19 +79,21 @@ output:
     });
   });
 
-  describe('AGENT_NAMES', () => {
+  describe('getAgentNames', () => {
     it('contains all agents discovered from agents/ directory', () => {
+      const names = getAgentNames();
       const coreAgents = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'story-engineer', 'developer', 'reviewer', 'qa'];
       const optionalAgents = ['devops', 'tech-writer', 'security'];
       for (const name of [...coreAgents, ...optionalAgents]) {
-        assert.ok(AGENT_NAMES.includes(name), `Missing agent: ${name}`);
+        assert.ok(names.includes(name), `Missing agent: ${name}`);
       }
-      assert.equal(AGENT_NAMES.length, 13);
+      assert.equal(names.length, 13);
     });
 
     it('is sorted alphabetically', () => {
-      const sorted = [...AGENT_NAMES].sort();
-      assert.deepEqual(AGENT_NAMES, sorted);
+      const names = getAgentNames();
+      const sorted = [...names].sort();
+      assert.deepEqual(names, sorted);
     });
   });
 

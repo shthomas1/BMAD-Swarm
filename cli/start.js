@@ -13,6 +13,7 @@ export function registerStartCommand(program) {
     .description('Launch Claude Code with orchestrator system prompt')
     .option('--print', 'Print the claude command instead of running it')
     .option('--dangerous', 'Launch in dangerously-skip-permissions mode (skips all permission prompts)')
+    .option('--allow-tools', 'Allow all tools (disables the default --disallowedTools restriction)')
     .action(async (options) => {
       const projectRoot = process.cwd();
       const paths = getProjectPaths(projectRoot);
@@ -25,7 +26,12 @@ export function registerStartCommand(program) {
       const args = ['--append-system-prompt', paths.systemPrompt];
 
       if (options.dangerous) {
+        console.warn('WARNING: Launching in dangerous mode. All Claude Code permission prompts will be skipped.');
         args.push('--dangerously-skip-permissions');
+      }
+
+      if (!options.allowTools) {
+        args.push('--disallowedTools', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'NotebookRead', 'WebSearch', 'WebFetch');
       }
 
       if (options.print) {

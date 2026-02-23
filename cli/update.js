@@ -1,5 +1,6 @@
-import { resolve } from 'node:path';
-import { existsSync } from 'node:fs';
+import { resolve, join } from 'node:path';
+import { existsSync, unlinkSync } from 'node:fs';
+import { readFileSafe } from '../utils/fs-helpers.js';
 import { getProjectPaths } from '../utils/paths.js';
 import { loadSwarmConfig } from '../utils/config.js';
 import { generateAgents } from '../generators/agent-generator.js';
@@ -95,8 +96,12 @@ async function runUpdate(options) {
   if (options.dryRun) {
     console.log('  Would regenerate .claude/hooks/');
   } else {
-    const hookPaths = generateHooks(config, paths);
-    console.log(`  \u2713 Regenerated .claude/hooks/ (${hookPaths.length} hooks)`);
+    const hookResult = generateHooks(config, paths, genOptions);
+    console.log(`  \u2713 Regenerated .claude/hooks/ (${hookResult.generated.length} hooks)`);
+    if (hookResult.skipped.length > 0) {
+      console.log(`    Skipped (manually modified): ${hookResult.skipped.length} hook(s)`);
+      console.log(`    Use --force to overwrite.`);
+    }
   }
 
   // 4. Regenerate rules
@@ -108,6 +113,22 @@ async function runUpdate(options) {
     if (rulesResult.modified.length > 0) {
       console.log(`    Skipped (manually modified): ${rulesResult.modified.join(', ')}`);
       console.log(`    Use --force to overwrite.`);
+    }
+  }
+
+  // 4.1. Clean up stale orchestrator rule files (moved to agent file in v1.3)
+  if (!options.dryRun) {
+    const staleRules = ['orchestrator-identity.md', 'orchestrator-methodology.md'];
+    for (const name of staleRules) {
+      const rulePath = join(paths.rulesDir, name);
+      if (!existsSync(rulePath)) continue;
+      const content = readFileSafe(rulePath);
+      // Only delete if the file has a bmad-generated header (originated from bmad-swarm).
+      // Files without the header are user-created and should be preserved.
+      if (content && /^<!-- bmad-generated:[a-f0-9]+ -->/.test(content)) {
+        unlinkSync(rulePath);
+        console.log(`  \u2713 Removed stale .claude/rules/${name}`);
+      }
     }
   }
 
@@ -128,8 +149,13 @@ async function runUpdate(options) {
   if (options.dryRun) {
     console.log('  Would regenerate .claude/settings.json');
   } else {
-    generateSettings(paths);
-    console.log('  \u2713 Regenerated .claude/settings.json');
+    const settingsResult = generateSettings(config, paths, genOptions);
+    if (settingsResult.modified) {
+      console.log('  ! Skipped .claude/settings.json (manually modified)');
+      console.log('    Use --force to overwrite.');
+    } else {
+      console.log('  \u2713 Regenerated .claude/settings.json');
+    }
   }
 
   console.log('\nUpdate complete. User-owned files (swarm.yaml, overrides/, artifacts/) were not touched.');

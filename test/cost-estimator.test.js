@@ -88,5 +88,15 @@ describe('Cost Estimator', () => {
       const result = estimateCost(baseConfig, 'nonexistent-entry');
       assert.equal(result.agents.length, 13, 'Should use all agents for unknown entry point');
     });
+
+    it('uses Sonnet 4.6 pricing as baseline', () => {
+      // Sonnet 4.6 pricing: $3/1M input, $15/1M output
+      // A single ideator (min 10000 tokens) at 60/40 input/output split:
+      // input: 6000 tokens = $0.018, output: 4000 tokens = $0.060 => total ~$0.078
+      const result = estimateCost(baseConfig, 'brainstorm');
+      const minCost = parseFloat(result.estimatedCostMin.slice(1));
+      // Sonnet pricing gives low costs. If Opus pricing were used ($15/$75), costs would be 5x higher.
+      assert.ok(minCost < 0.50, 'Min cost for brainstorm should be well under $0.50 with Sonnet pricing');
+    });
   });
 });

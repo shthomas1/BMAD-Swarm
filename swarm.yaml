@@ -7,6 +7,8 @@ stack:
 methodology:
   autonomy: auto
   phases:
+    ideation:
+      enabled: true
     exploration:
       enabled: true
     definition:
@@ -26,4 +28,4 @@ methodology:
       - architecture
 output:
   artifacts_dir: ./artifacts
-  code_dir: ./src
+  code_dir: .
