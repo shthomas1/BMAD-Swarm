@@ -674,7 +674,7 @@ stack:
       const paths = getProjectPaths(projectDir);
       const result = generateHooks(config, paths);
 
-      assert.equal(result.generated.length, 6, 'Should generate 6 hooks');
+      assert.equal(result.generated.length, 5, 'Should generate 5 hooks');
       assert.equal(result.skipped.length, 0, 'No hooks should be skipped');
       for (const hookPath of result.generated) {
         assert.ok(existsSync(hookPath), `Hook should exist: ${hookPath}`);
@@ -707,7 +707,7 @@ stack:
       const result = generateHooks(config, paths);
       assert.equal(result.skipped.length, 1, 'Should skip 1 modified hook');
       assert.ok(result.skipped[0].includes('TaskCompleted'), 'Should skip TaskCompleted');
-      assert.equal(result.generated.length, 5, 'Should regenerate the other 5');
+      assert.equal(result.generated.length, 4, 'Should regenerate the other 4');
     });
 
     it('overwrites modified hooks with force option', () => {
@@ -728,7 +728,7 @@ stack:
 
       const result = generateHooks(config, paths, { force: true });
       assert.equal(result.skipped.length, 0, 'Should skip nothing with force');
-      assert.equal(result.generated.length, 6, 'Should regenerate all 6');
+      assert.equal(result.generated.length, 5, 'Should regenerate all 5');
     });
 
     it('generates task-tool-warning hook', () => {
@@ -811,30 +811,11 @@ stack:
       assert.ok(content.includes('IDENTITY REMINDER'), 'Should contain identity reminder text');
       assert.ok(content.includes('orchestrator'), 'Should reference orchestrator role');
       assert.ok(content.includes('session-test'), 'Should include project name');
-      assert.ok(content.includes('.claude/agents/orchestrator.md'), 'Should reference orchestrator agent file, not rules');
+      assert.ok(content.includes('.session-active'), 'Should clear session marker on compaction');
     });
 
-    it('generates orchestrator-post-tool hook for code dir enforcement', () => {
-      const projectDir = join(tmpDir, 'hooks-test-post-tool');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, 'project:\n  name: test\noutput:\n  code_dir: ./lib\n');
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateHooks(config, paths);
-
-      const hookPath = join(paths.hooksDir, 'orchestrator-post-tool.cjs');
-      assert.ok(existsSync(hookPath), 'orchestrator-post-tool.cjs should exist');
-
-      const content = readFileSync(hookPath, 'utf8');
-      assert.ok(content.includes('./lib'), 'Should use configured code_dir');
-      assert.ok(content.includes('additionalContext'), 'Should output additionalContext');
-    });
-
-    it('generates orchestrator-stop hook', () => {
-      const projectDir = join(tmpDir, 'hooks-test-stop');
+    it('generates user-prompt-submit hook', () => {
+      const projectDir = join(tmpDir, 'hooks-test-user-prompt');
       mkdirSync(projectDir, { recursive: true });
 
       const configPath = join(projectDir, 'swarm.yaml');
@@ -844,12 +825,12 @@ stack:
       const paths = getProjectPaths(projectDir);
       generateHooks(config, paths);
 
-      const hookPath = join(paths.hooksDir, 'orchestrator-stop.cjs');
-      assert.ok(existsSync(hookPath), 'orchestrator-stop.cjs should exist');
+      const hookPath = join(paths.hooksDir, 'user-prompt-submit.cjs');
+      assert.ok(existsSync(hookPath), 'user-prompt-submit.cjs should exist');
 
       const content = readFileSync(hookPath, 'utf8');
-      assert.ok(content.includes('block'), 'Should contain block decision');
-      assert.ok(content.includes('code-modified-marker'), 'Should reference marker file');
+      assert.ok(content.includes('orchestrator.md'), 'Should reference orchestrator.md on first message');
+      assert.ok(content.includes('.session-active'), 'Should use session marker file');
     });
   });
 });

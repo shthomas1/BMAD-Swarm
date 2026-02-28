@@ -46,8 +46,8 @@ describe('Settings Generator', () => {
 
     const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
     assert.ok(content.hooks, 'Should have hooks section');
+    assert.ok(content.hooks.UserPromptSubmit, 'Should have UserPromptSubmit hooks');
     assert.ok(content.hooks.PostToolUse, 'Should have PostToolUse hooks');
-    assert.ok(content.hooks.Stop, 'Should have Stop hooks');
     assert.ok(content.hooks.SessionStart, 'Should have SessionStart hooks');
     assert.ok(content.hooks.TaskCompleted, 'Should have TaskCompleted hooks');
     assert.ok(content.hooks.TeammateIdle, 'Should have TeammateIdle hooks');

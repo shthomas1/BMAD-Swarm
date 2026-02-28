@@ -3,3 +3,9 @@ node_modules/
 .DS_Store
 Thumbs.db
 nul
+# bmad-swarm (generated files)
+.claude/
+artifacts/
+swarm.yaml
+project.yaml
+CLAUDE.md

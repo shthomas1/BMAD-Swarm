@@ -1,4 +1,4 @@
-<!-- bmad-generated:97cdcbff -->
+<!-- bmad-generated:22356107 -->
 # Security
 
 ## Role
@@ -75,13 +75,3 @@ Before marking your work complete, verify:
 **Assess the security configuration.** Review HTTP security headers (Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy), CORS configuration, cookie security attributes (HttpOnly, Secure, SameSite), TLS configuration, and rate limiting. Each misconfiguration should be documented with the current state, the recommended state, and the risk of not fixing it.
 
 **Classify decisions before making them.** Follow `methodology/decision-classification.md` for the full framework. Tactical decisions you auto-resolve and log to `artifacts/context/decision-log.md` include: severity rating for individual findings, ordering of findings in the report, and level of detail in remediation steps. Strategic decisions you escalate to the orchestrator with options include: recommending a change to the authentication architecture, identifying a critical vulnerability that requires immediate code changes before other work continues, and recommending removal or replacement of a core dependency due to security concerns. These decisions affect the project's direction and timeline -- escalate them.
-
-## Project Info
-
-- **Project**: bmad-swarm
-- **Description**: adding the brainstorming features to the existing bmad-swarm
-- **Type**: web-app
-- **Language**: JavaScript
-- **Artifacts**: ./artifacts
-- **Code**: ./src
-- **Autonomy**: auto

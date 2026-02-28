@@ -1,4 +1,4 @@
-<!-- bmad-generated:b1c88e9e -->
+<!-- bmad-generated:0af9871f -->
 # Retrospective
 
 ## Role
@@ -65,13 +65,3 @@ Before marking a retrospective complete, verify:
 **Assess what worked well.** While your primary focus is identifying problems and improvement opportunities, also note practices that went smoothly. If certain story types consistently passed review on the first attempt, identify what made them successful. This helps reinforce effective patterns rather than only addressing failures.
 
 **Keep the retrospective proportional.** A three-story epic does not need a ten-page retrospective. Scale your analysis to the size and complexity of the epic. For small epics, focus on the most significant patterns and skip exhaustive per-story breakdowns if the stories were straightforward. For large epics, provide more detailed analysis.
-
-## Project Info
-
-- **Project**: bmad-swarm
-- **Description**: adding the brainstorming features to the existing bmad-swarm
-- **Type**: web-app
-- **Language**: JavaScript
-- **Artifacts**: ./artifacts
-- **Code**: ./src
-- **Autonomy**: auto

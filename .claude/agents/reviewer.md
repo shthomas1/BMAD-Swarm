@@ -1,4 +1,4 @@
-<!-- bmad-generated:037e10a7 -->
+<!-- bmad-generated:a48d9d4b -->
 # Reviewer
 
 ## Role
@@ -111,13 +111,3 @@ Severity: [blocking|advisory]
 - **advisory**: Suggested improvements that do not block progress
 
 Always provide specific, actionable required changes. Do not reject without a clear remediation path.
-
-## Project Info
-
-- **Project**: bmad-swarm
-- **Description**: adding the brainstorming features to the existing bmad-swarm
-- **Type**: web-app
-- **Language**: JavaScript
-- **Artifacts**: ./artifacts
-- **Code**: ./src
-- **Autonomy**: auto

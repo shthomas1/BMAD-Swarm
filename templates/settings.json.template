@@ -1,10 +1,16 @@
 {
   "permissions": {
     "allow": [
-      "Bash(npm:*)",
-      "Bash(node:*)",
-      "Bash(git:*)",
-      "Bash(npx:*)"
+      "Bash(*)",
+      "Edit",
+      "Write",
+      "Read",
+      "MultiEdit",
+      "Task",
+      "WebSearch",
+      "WebFetch",
+      "TodoRead",
+      "TodoWrite"
     ]
   }
 }

@@ -1,9 +1,10 @@
 import { resolve, join } from 'node:path';
 import { existsSync } from 'node:fs';
+import { execSync } from 'node:child_process';
 import { createInterface } from 'node:readline';
 import yaml from 'js-yaml';
 import { getProjectPaths } from '../utils/paths.js';
-import { writeFileSafe, ensureDir } from '../utils/fs-helpers.js';
+import { writeFileSafe, ensureDir, updateGitignore } from '../utils/fs-helpers.js';
 import { generateAgents } from '../generators/agent-generator.js';
 import { generateClaudeMd } from '../generators/claude-md-generator.js';
 import { generateHooks } from '../generators/hooks-generator.js';
@@ -143,7 +144,21 @@ async function runInit(options) {
   // 10. Create overrides directory
   ensureDir(paths.overridesAgentsDir);
 
-  // 11. Generate GitHub Actions workflow if requested
+  // 11. Update .gitignore
+  updateGitignore(projectRoot);
+  console.log('  ✓ Updated .gitignore');
+
+  // 12. Initialize git repo if not already one (required for Claude Code to load hooks)
+  if (!existsSync(join(projectRoot, '.git'))) {
+    try {
+      execSync('git init', { cwd: projectRoot, stdio: 'pipe' });
+      console.log('  \u2713 Initialized git repository');
+    } catch {
+      console.warn('  ! Could not initialize git repository (git not found). Run `git init` manually.');
+    }
+  }
+
+  // 13. Generate GitHub Actions workflow if requested
   if (options.github) {
     const workflowPath = generateGitHubWorkflow(projectRoot);
     console.log(`  \u2713 Generated ${workflowPath}`);

@@ -1,5 +1,5 @@
 import { mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
-import { dirname } from 'node:path';
+import { dirname, join } from 'node:path';
 import { createHash } from 'node:crypto';
 
 /**
@@ -138,4 +138,32 @@ export function writeGeneratedJsFile(filePath, content) {
   }
   ensureDir(dirname(filePath));
   writeFileSync(filePath, output, 'utf8');
+}
+
+/**
+ * Add bmad-swarm generated files to .gitignore if not already present.
+ * Idempotent - safe to call on every init/update.
+ * @param {string} projectRoot - Project root directory
+ */
+export function updateGitignore(projectRoot) {
+  const gitignorePath = join(projectRoot, '.gitignore');
+  const marker = '# bmad-swarm (generated files)';
+  const entries = ['.claude/', 'artifacts/', 'swarm.yaml', 'project.yaml', 'CLAUDE.md', 'overrides/'];
+
+  let existing = existsSync(gitignorePath) ? readFileSync(gitignorePath, 'utf8') : '';
+
+  if (existing.includes(marker)) {
+    const lines = existing.split(/\r?\n/).map(l => l.trim());
+    let updated = existing;
+    for (const entry of entries) {
+      if (!lines.includes(entry)) {
+        updated = updated.trimEnd() + '\n' + entry + '\n';
+      }
+    }
+    if (updated !== existing) writeFileSync(gitignorePath, updated, 'utf8');
+    return;
+  }
+
+  const newSection = '\n' + marker + '\n' + entries.join('\n') + '\n';
+  writeFileSync(gitignorePath, existing.trimEnd() + newSection, 'utf8');
 }

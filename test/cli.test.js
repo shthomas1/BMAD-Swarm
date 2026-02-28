@@ -123,35 +123,30 @@ describe('CLI Integration', () => {
     assert.ok(err, 'Should fail without swarm.yaml');
   });
 
-  it('start --print includes --disallowedTools by default', () => {
+  it('start --print outputs simple claude --append-system-prompt command', () => {
     const dir = join(tmpBase, 'start-print');
     mkdirSync(dir, { recursive: true });
     run('init -y', dir);
     const output = run('start --print', dir);
-    assert.ok(output.includes('--disallowedTools'), 'Should include --disallowedTools');
-    assert.ok(output.includes('Edit'), 'Should disallow Edit');
-    assert.ok(output.includes('Write'), 'Should disallow Write');
-    assert.ok(output.includes('MultiEdit'), 'Should disallow MultiEdit');
-    assert.ok(output.includes('NotebookEdit'), 'Should disallow NotebookEdit');
-    assert.ok(output.includes('NotebookRead'), 'Should disallow NotebookRead');
-    assert.ok(output.includes('WebSearch'), 'Should disallow WebSearch');
-    assert.ok(output.includes('WebFetch'), 'Should disallow WebFetch');
+    assert.ok(output.includes('--append-system-prompt'), 'Should include --append-system-prompt');
+    assert.ok(!output.includes('--disallowedTools'), 'Should NOT include --disallowedTools');
+    assert.ok(!output.includes('--dangerously-skip-permissions'), 'Should NOT include --dangerously-skip-permissions');
   });
 
-  it('start --print --allow-tools omits --disallowedTools', () => {
-    const dir = join(tmpBase, 'start-allow');
+  it('start --print does not include tool restrictions (handled by settings.json)', () => {
+    const dir = join(tmpBase, 'start-no-restrictions');
     mkdirSync(dir, { recursive: true });
     run('init -y', dir);
-    const output = run('start --print --allow-tools', dir);
+    const output = run('start --print', dir);
     assert.ok(!output.includes('--disallowedTools'), 'Should NOT include --disallowedTools');
+    assert.ok(!output.includes('--allow-tools'), 'Should NOT include --allow-tools');
   });
 
-  it('start --help shows --allow-tools and --dangerous flags', () => {
+  it('start --help shows --print flag', () => {
     const dir = join(tmpBase, 'start-help');
     mkdirSync(dir, { recursive: true });
     const output = run('start --help', dir);
-    assert.ok(output.includes('--allow-tools'), 'Should show --allow-tools');
-    assert.ok(output.includes('--dangerous'), 'Should show --dangerous');
+    assert.ok(output.includes('--print'), 'Should show --print flag');
   });
 
   it('workspace list shows workspaces from swarm.yaml', () => {
@@ -204,23 +199,21 @@ describe('CLI Integration', () => {
     assert.ok(content.includes('bmad-swarm validate'), 'Should contain validate step');
   });
 
-  it('start --dangerous --print shows warning on stderr', () => {
+  it('start --dangerous is not a valid option (permissions handled by settings.json)', () => {
     const dir = join(tmpBase, 'start-dangerous');
     mkdirSync(dir, { recursive: true });
     run('init -y', dir);
     try {
-      const result = execSync(`node "${CLI}" start --dangerous --print`, {
+      execSync(`node "${CLI}" start --dangerous --print`, {
         cwd: dir,
         encoding: 'utf8',
         timeout: 15000,
         stdio: ['pipe', 'pipe', 'pipe'],
       });
-      // stdout should have the command (from --print)
-      assert.ok(result.includes('--dangerously-skip-permissions'), 'Should include dangerous flag in command');
+      assert.fail('Should have thrown for unknown option');
     } catch (err) {
-      // If it exits non-zero for some reason, check stderr
       const stderr = err.stderr || '';
-      assert.ok(stderr.includes('WARNING'), 'Should show WARNING on stderr');
+      assert.ok(stderr.includes('unknown option'), 'Should report unknown option --dangerous');
     }
   });
 

@@ -1,39 +1,37 @@
 {
+  "_bmadGenerated": "26caefda",
   "permissions": {
     "allow": [
-      "Bash(npm:*)",
-      "Bash(node:*)",
-      "Bash(git:*)",
-      "Bash(npx:*)"
+      "Bash(*)",
+      "Edit",
+      "Write",
+      "Read",
+      "MultiEdit",
+      "Task",
+      "WebSearch",
+      "WebFetch",
+      "TodoRead",
+      "TodoWrite"
     ]
   },
   "hooks": {
-    "PostToolUse": [
+    "UserPromptSubmit": [
       {
-        "matcher": "Edit|Write|Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "node .claude/hooks/orchestrator-post-tool.cjs"
+            "command": "node .claude/hooks/user-prompt-submit.cjs"
           }
         ]
-      },
+      }
+    ],
+    "PostToolUse": [
       {
         "matcher": "Task",
         "hooks": [
           {
             "type": "command",
             "command": "node .claude/hooks/task-tool-warning.cjs"
-          }
-        ]
-      }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/orchestrator-stop.cjs"
           }
         ]
       }
@@ -53,6 +51,26 @@
           {
             "type": "command",
             "command": "node .claude/hooks/identity-reinject.cjs"
+          }
+        ]
+      }
+    ],
+    "TaskCompleted": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/TaskCompleted.cjs"
+          }
+        ]
+      }
+    ],
+    "TeammateIdle": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/TeammateIdle.cjs"
           }
         ]
       }

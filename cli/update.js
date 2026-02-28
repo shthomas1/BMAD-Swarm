@@ -1,6 +1,6 @@
 import { resolve, join } from 'node:path';
 import { existsSync, unlinkSync } from 'node:fs';
-import { readFileSafe } from '../utils/fs-helpers.js';
+import { readFileSafe, updateGitignore } from '../utils/fs-helpers.js';
 import { getProjectPaths } from '../utils/paths.js';
 import { loadSwarmConfig } from '../utils/config.js';
 import { generateAgents } from '../generators/agent-generator.js';
@@ -116,18 +116,28 @@ async function runUpdate(options) {
     }
   }
 
-  // 4.1. Clean up stale orchestrator rule files (moved to agent file in v1.3)
+  // 4.1. Clean up stale generated files from older versions
   if (!options.dryRun) {
+    // Rule files moved to agent file in v1.3
     const staleRules = ['orchestrator-identity.md', 'orchestrator-methodology.md'];
     for (const name of staleRules) {
       const rulePath = join(paths.rulesDir, name);
       if (!existsSync(rulePath)) continue;
       const content = readFileSafe(rulePath);
-      // Only delete if the file has a bmad-generated header (originated from bmad-swarm).
-      // Files without the header are user-created and should be preserved.
       if (content && /^<!-- bmad-generated:[a-f0-9]+ -->/.test(content)) {
         unlinkSync(rulePath);
         console.log(`  \u2713 Removed stale .claude/rules/${name}`);
+      }
+    }
+    // Enforcement hooks removed in v1.4
+    const staleHooks = ['orchestrator-post-tool.cjs', 'orchestrator-stop.cjs'];
+    for (const name of staleHooks) {
+      const hookPath = join(paths.hooksDir, name);
+      if (!existsSync(hookPath)) continue;
+      const content = readFileSafe(hookPath);
+      if (content && /^\/\/ bmad-generated:[a-f0-9]+/.test(content.split('\n')[1])) {
+        unlinkSync(hookPath);
+        console.log(`  \u2713 Removed stale .claude/hooks/${name}`);
       }
     }
   }
@@ -156,6 +166,11 @@ async function runUpdate(options) {
     } else {
       console.log('  \u2713 Regenerated .claude/settings.json');
     }
+  }
+
+  // Ensure .gitignore stays current
+  if (!options.dryRun) {
+    updateGitignore(projectRoot);
   }
 
   console.log('\nUpdate complete. User-owned files (swarm.yaml, overrides/, artifacts/) were not touched.');

@@ -1,12 +1,12 @@
-<!-- bmad-generated:3ed36ff5 -->
+<!-- bmad-generated:fd7947ec -->
 ---
 paths:
-  - "./src/**/*"
+  - "./**/*"
 ---
 
 # Coding Standards
 
-These standards apply to all source code in `./src/`.
+These standards apply to all source code in `./`.
 
 ## TDD Workflow
 
