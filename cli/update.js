@@ -8,7 +8,7 @@ import { generateClaudeMd } from '../generators/claude-md-generator.js';
 import { generateHooks } from '../generators/hooks-generator.js';
 import { generateSettings } from '../generators/settings-generator.js';
 import { generateRules } from '../generators/rules-generator.js';
-import { generateSystemPrompt } from '../generators/system-prompt-generator.js';
+import { generateCommands } from '../generators/commands-generator.js';
 
 /**
  * Register the update command with the CLI program.
@@ -140,18 +140,47 @@ async function runUpdate(options) {
         console.log(`  \u2713 Removed stale .claude/hooks/${name}`);
       }
     }
+    // Agents removed in Option C restructure (v2.0)
+    const staleAgents = ['qa.md', 'story-engineer.md', 'retrospective.md', 'tech-writer.md'];
+    for (const name of staleAgents) {
+      const p = join(paths.agentsDir, name);
+      if (!existsSync(p)) continue;
+      const content = readFileSafe(p);
+      if (content && /^<!-- bmad-generated:[a-f0-9]+ -->/.test(content)) {
+        unlinkSync(p);
+        console.log(`  \u2713 Removed stale .claude/agents/${name}`);
+      }
+    }
+    // Hooks removed in Option C restructure (v2.0)
+    const staleHooksOptionC = ['task-tool-warning.cjs', 'TeammateIdle.cjs', 'identity-reinject.cjs'];
+    for (const name of staleHooksOptionC) {
+      const p = join(paths.hooksDir, name);
+      if (!existsSync(p)) continue;
+      const content = readFileSafe(p);
+      const secondLine = content ? content.split('\n')[1] : '';
+      if (content && /^\/\/ bmad-generated:[a-f0-9]+/.test(secondLine || '')) {
+        unlinkSync(p);
+        console.log(`  \u2713 Removed stale .claude/hooks/${name}`);
+      }
+    }
+    // System prompt file removed in Option C restructure (v2.0)
+    if (existsSync(paths.systemPrompt)) {
+      const content = readFileSafe(paths.systemPrompt);
+      if (content && /^<!-- bmad-generated:[a-f0-9]+ -->/.test(content)) {
+        unlinkSync(paths.systemPrompt);
+        console.log(`  \u2713 Removed stale .claude/system-prompt.txt`);
+      }
+    }
   }
 
-  // 4.5. Regenerate system-prompt.txt
+  // 4.5. Regenerate slash commands
   if (options.dryRun) {
-    console.log('  Would regenerate .claude/system-prompt.txt');
+    console.log('  Would regenerate .claude/commands/');
   } else {
-    const promptResult = generateSystemPrompt(config, paths, genOptions);
-    if (promptResult.modified) {
-      console.log('  ! Skipped .claude/system-prompt.txt (manually modified)');
-      console.log('    Use --force to overwrite.');
-    } else {
-      console.log('  \u2713 Regenerated .claude/system-prompt.txt');
+    const commandResult = generateCommands(config, paths, genOptions);
+    console.log(`  \u2713 Regenerated .claude/commands/ (${commandResult.generated.length} commands)`);
+    if (commandResult.modified.length > 0) {
+      console.log(`    Skipped (manually modified): ${commandResult.modified.join(', ')}`);
     }
   }
 

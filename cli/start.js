@@ -1,4 +1,3 @@
-import { resolve } from 'node:path';
 import { existsSync } from 'node:fs';
 import { spawn } from 'node:child_process';
 import { getProjectPaths } from '../utils/paths.js';
@@ -10,21 +9,22 @@ import { getProjectPaths } from '../utils/paths.js';
 export function registerStartCommand(program) {
   program
     .command('start')
-    .description('Launch Claude Code with orchestrator system prompt')
+    .description('Launch Claude Code in this project')
     .option('--print', 'Print the claude command instead of running it')
     .action(async (options) => {
       const projectRoot = process.cwd();
       const paths = getProjectPaths(projectRoot);
 
-      if (!existsSync(paths.systemPrompt)) {
-        console.error('No .claude/system-prompt.txt found. Run `bmad-swarm init` first.');
+      if (!existsSync(paths.settingsJson)) {
+        console.error('No .claude/settings.json found. Run `bmad-swarm init` first.');
         process.exit(1);
       }
 
-      const args = ['--append-system-prompt', paths.systemPrompt];
+      // Identity loads via /identity-orchestrator slash command; no --append-system-prompt.
+      const args = [];
 
       if (options.print) {
-        console.log(`claude ${args.join(' ')}`);
+        console.log(`claude${args.length ? ' ' + args.join(' ') : ''}`.trim());
         return;
       }
 

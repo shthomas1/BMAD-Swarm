@@ -98,6 +98,23 @@ async function runDoctor() {
     hasIssues = true;
   }
 
+  // 6.5. Slash commands
+  const commandsDir = join(paths.claudeDir, 'commands');
+  if (existsSync(commandsDir)) {
+    const commandFiles = readdirSync(commandsDir).filter(f => f.endsWith('.md'));
+    const identityCount = commandFiles.filter(f => f.startsWith('identity-')).length;
+    const workflowCount = commandFiles.length - identityCount;
+    if (identityCount > 0 && workflowCount > 0) {
+      check(true, `.claude/commands/ has ${identityCount} identity + ${workflowCount} workflow commands`);
+    } else {
+      check(false, `.claude/commands/ is missing identity or workflow commands`, 'Run `bmad-swarm update` to regenerate');
+      hasIssues = true;
+    }
+  } else {
+    check(false, '.claude/commands/ not found', 'Run `bmad-swarm update` to generate');
+    hasIssues = true;
+  }
+
   // 7. project.yaml
   if (existsSync(paths.projectYaml)) {
     check(true, 'project.yaml exists');

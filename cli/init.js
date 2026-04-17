@@ -10,7 +10,7 @@ import { generateClaudeMd } from '../generators/claude-md-generator.js';
 import { generateHooks } from '../generators/hooks-generator.js';
 import { generateSettings } from '../generators/settings-generator.js';
 import { generateRules } from '../generators/rules-generator.js';
-import { generateSystemPrompt } from '../generators/system-prompt-generator.js';
+import { generateCommands } from '../generators/commands-generator.js';
 import { loadSwarmConfig } from '../utils/config.js';
 import { runScan } from './scan.js';
 import { generateGitHubWorkflow } from '../generators/github-actions-generator.js';
@@ -121,9 +121,9 @@ async function runInit(options) {
   const rulesResult = generateRules(config, paths);
   console.log(`  \u2713 Generated .claude/rules/ (${rulesResult.generated.length} rules)`);
 
-  // 6.5. Generate .claude/system-prompt.txt
-  generateSystemPrompt(config, paths);
-  console.log('  \u2713 Generated .claude/system-prompt.txt');
+  // 6.5. Generate .claude/commands/
+  const commandResult = generateCommands(config, paths);
+  console.log(`  \u2713 Generated .claude/commands/ (${commandResult.generated.length} commands)`);
 
   // 7. Generate CLAUDE.md
   generateClaudeMd(config, paths);
@@ -262,6 +262,7 @@ function buildSwarmYaml(answers) {
     methodology: {
       autonomy: answers.autonomy,
       phases: {
+        ideation: { enabled: true },
         exploration: { enabled: true },
         definition: { enabled: true },
         design: { enabled: true },
@@ -273,6 +274,9 @@ function buildSwarmYaml(answers) {
         require_review: true,
         require_human_approval: ['prd', 'architecture'],
       },
+    },
+    defaults: {
+      model: 'opus',
     },
     output: {
       artifacts_dir: './artifacts',
