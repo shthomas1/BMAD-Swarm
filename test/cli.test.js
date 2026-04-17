@@ -123,12 +123,13 @@ describe('CLI Integration', () => {
     assert.ok(err, 'Should fail without swarm.yaml');
   });
 
-  it('start --print outputs simple claude --append-system-prompt command', () => {
+  it('start --print outputs a bare claude command (identity loads via /identity-orchestrator slash command)', () => {
     const dir = join(tmpBase, 'start-print');
     mkdirSync(dir, { recursive: true });
     run('init -y', dir);
     const output = run('start --print', dir);
-    assert.ok(output.includes('--append-system-prompt'), 'Should include --append-system-prompt');
+    assert.ok(output.includes('claude'), 'Should print the claude command');
+    assert.ok(!output.includes('--append-system-prompt'), 'Should NOT pass --append-system-prompt (system prompt mechanism removed in Option C)');
     assert.ok(!output.includes('--disallowedTools'), 'Should NOT include --disallowedTools');
     assert.ok(!output.includes('--dangerously-skip-permissions'), 'Should NOT include --dangerously-skip-permissions');
   });

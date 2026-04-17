@@ -82,12 +82,12 @@ output:
   describe('getAgentNames', () => {
     it('contains all agents discovered from agents/ directory', () => {
       const names = getAgentNames();
-      const coreAgents = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'story-engineer', 'developer', 'reviewer', 'qa'];
-      const optionalAgents = ['devops', 'tech-writer', 'security'];
+      const coreAgents = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'developer', 'reviewer'];
+      const optionalAgents = ['devops', 'security'];
       for (const name of [...coreAgents, ...optionalAgents]) {
         assert.ok(names.includes(name), `Missing agent: ${name}`);
       }
-      assert.equal(names.length, 13);
+      assert.equal(names.length, 9);
     });
 
     it('is sorted alphabetically', () => {

@@ -47,10 +47,41 @@ describe('Settings Generator', () => {
     const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
     assert.ok(content.hooks, 'Should have hooks section');
     assert.ok(content.hooks.UserPromptSubmit, 'Should have UserPromptSubmit hooks');
-    assert.ok(content.hooks.PostToolUse, 'Should have PostToolUse hooks');
     assert.ok(content.hooks.SessionStart, 'Should have SessionStart hooks');
+    assert.ok(content.hooks.PreToolUse, 'Should have PreToolUse hooks (TeamCreate + Edit/Write gates)');
     assert.ok(content.hooks.TaskCompleted, 'Should have TaskCompleted hooks');
-    assert.ok(content.hooks.TeammateIdle, 'Should have TeammateIdle hooks');
+    assert.ok(!content.hooks.PostToolUse, 'Should NOT have PostToolUse hooks (task-tool-warning removed)');
+    assert.ok(!content.hooks.TeammateIdle, 'Should NOT have TeammateIdle hooks (dead capability removed)');
+  });
+
+  it('permissions.allow does not include Task', () => {
+    const { config, paths } = makeProject('settings-no-task');
+    generateSettings(config, paths);
+    const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.ok(!content.permissions.allow.includes('Task'), 'Task must not be in allow-list (structural enforcement)');
+  });
+
+  it('permissions.allow does not include TodoRead or TodoWrite', () => {
+    const { config, paths } = makeProject('settings-no-todo');
+    generateSettings(config, paths);
+    const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.ok(!content.permissions.allow.includes('TodoRead'), 'TodoRead must not be in allow-list');
+    assert.ok(!content.permissions.allow.includes('TodoWrite'), 'TodoWrite must not be in allow-list');
+  });
+
+  it('permissions.allow contains TeamCreate', () => {
+    const { config, paths } = makeProject('settings-teamcreate');
+    generateSettings(config, paths);
+    const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.ok(content.permissions.allow.includes('TeamCreate'), 'TeamCreate must be in allow-list');
+  });
+
+  it('env.AGENT_ROLE is set to orchestrator', () => {
+    const { config, paths } = makeProject('settings-agent-role');
+    generateSettings(config, paths);
+    const content = JSON.parse(readFileSync(paths.settingsJson, 'utf8'));
+    assert.ok(content.env, 'Should have env section');
+    assert.equal(content.env.AGENT_ROLE, 'orchestrator', 'AGENT_ROLE env must be set to orchestrator');
   });
 
   it('creates file at correct path inside .claude/', () => {

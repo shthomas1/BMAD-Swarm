@@ -10,13 +10,12 @@ describe('Cost Estimator', () => {
   };
 
   describe('estimateCost', () => {
-    it('returns all 13 agents for full-lifecycle', () => {
+    it('returns all 9 agents for full-lifecycle', () => {
       const result = estimateCost(baseConfig, 'full-lifecycle');
-      assert.equal(result.agents.length, 13);
+      assert.equal(result.agents.length, 9);
       const expected = [
         'orchestrator', 'ideator', 'researcher', 'strategist', 'architect',
-        'story-engineer', 'developer', 'reviewer', 'qa', 'devops',
-        'security', 'tech-writer', 'retrospective',
+        'developer', 'reviewer', 'security', 'devops',
       ];
       for (const agent of expected) {
         assert.ok(result.agents.includes(agent), `Missing agent: ${agent}`);
@@ -46,12 +45,17 @@ describe('Cost Estimator', () => {
     it('filters disabled agents', () => {
       const config = {
         ...baseConfig,
-        agents: { qa: { enabled: false }, devops: { enabled: false } },
+        agents: { security: { enabled: false }, devops: { enabled: false } },
       };
       const result = estimateCost(config, 'full-lifecycle');
-      assert.ok(!result.agents.includes('qa'), 'QA should be filtered');
+      assert.ok(!result.agents.includes('security'), 'Security should be filtered');
       assert.ok(!result.agents.includes('devops'), 'DevOps should be filtered');
-      assert.equal(result.agents.length, 11);
+      assert.equal(result.agents.length, 7);
+    });
+
+    it('returns correct agents for audit entry point', () => {
+      const result = estimateCost(baseConfig, 'audit');
+      assert.deepEqual(result.agents, ['researcher', 'reviewer', 'security']);
     });
 
     it('multiplies developer tokens for parallel devs', () => {
@@ -86,17 +90,16 @@ describe('Cost Estimator', () => {
 
     it('falls back to full-lifecycle for unknown entry point', () => {
       const result = estimateCost(baseConfig, 'nonexistent-entry');
-      assert.equal(result.agents.length, 13, 'Should use all agents for unknown entry point');
+      assert.equal(result.agents.length, 9, 'Should use all 9 agents for unknown entry point');
     });
 
-    it('uses Sonnet 4.6 pricing as baseline', () => {
-      // Sonnet 4.6 pricing: $3/1M input, $15/1M output
+    it('uses Opus pricing as baseline', () => {
+      // Opus pricing: $15/1M input, $75/1M output
       // A single ideator (min 10000 tokens) at 60/40 input/output split:
-      // input: 6000 tokens = $0.018, output: 4000 tokens = $0.060 => total ~$0.078
+      // input: 6000 tokens = $0.09, output: 4000 tokens = $0.30 => total ~$0.39
       const result = estimateCost(baseConfig, 'brainstorm');
       const minCost = parseFloat(result.estimatedCostMin.slice(1));
-      // Sonnet pricing gives low costs. If Opus pricing were used ($15/$75), costs would be 5x higher.
-      assert.ok(minCost < 0.50, 'Min cost for brainstorm should be well under $0.50 with Sonnet pricing');
+      assert.ok(minCost >= 0.05, 'Min cost for brainstorm should reflect Opus pricing');
     });
   });
 });

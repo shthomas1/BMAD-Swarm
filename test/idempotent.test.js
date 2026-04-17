@@ -46,7 +46,7 @@ methodology:
 
     // Capture first run output
     const firstRunAgents = {};
-    const agentFiles = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'story-engineer', 'developer', 'reviewer', 'qa'];
+    const agentFiles = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'developer', 'reviewer', 'security', 'devops'];
     for (const name of agentFiles) {
       const filePath = join(paths.agentsDir, `${name}.md`);
       if (existsSync(filePath)) {

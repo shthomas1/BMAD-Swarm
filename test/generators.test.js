@@ -7,8 +7,8 @@ import { getProjectPaths } from '../utils/paths.js';
 import { loadSwarmConfig } from '../utils/config.js';
 import { generateAgents, ejectAgent, unejectAgent, applyModelFrontmatter, applyFrontmatterField } from '../generators/agent-generator.js';
 import { generateClaudeMd } from '../generators/claude-md-generator.js';
-import { generateSystemPrompt } from '../generators/system-prompt-generator.js';
 import { generateHooks } from '../generators/hooks-generator.js';
+import { generateCommands } from '../generators/commands-generator.js';
 import { isFileManuallyModified } from '../utils/fs-helpers.js';
 
 describe('Generators', () => {
@@ -110,7 +110,7 @@ agents:
 project:
   name: test
 agents:
-  qa:
+  security:
     enabled: false
 `);
 
@@ -118,7 +118,7 @@ agents:
       const paths = getProjectPaths(projectDir);
       const result = generateAgents(config, paths);
 
-      assert.ok(!result.generated.includes('qa'), 'QA should not be generated');
+      assert.ok(!result.generated.includes('security'), 'Security should not be generated when disabled');
     });
 
     it('appends extra_context from config', () => {
@@ -170,14 +170,14 @@ agents:
       assert.ok(!devContent.includes('<!-- preferred-model:'), 'Should not use old HTML comment approach');
     });
 
-    it('does not add model frontmatter when no model specified', () => {
-      const projectDir = join(tmpDir, 'agent-test-no-model');
+    it('applies defaults.model as fallback when no per-agent model specified', () => {
+      const projectDir = join(tmpDir, 'agent-test-default-model');
       mkdirSync(projectDir, { recursive: true });
 
       const configPath = join(projectDir, 'swarm.yaml');
       writeFileSync(configPath, `
 project:
-  name: no-model-test
+  name: default-model-test
   type: web-app
 stack:
   language: JavaScript
@@ -188,8 +188,8 @@ stack:
       generateAgents(config, paths);
 
       const devContent = readFileSync(join(paths.agentsDir, 'developer.md'), 'utf8');
-      // Should NOT have frontmatter
-      assert.ok(!devContent.includes('model:'), 'Should not contain model field when not configured');
+      // applyDefaults now sets defaults.model='opus' so every agent inherits opus when no per-agent override
+      assert.ok(devContent.includes('model: opus'), 'Should contain model: opus from defaults.model fallback');
     });
 
     it('replaces existing model key in frontmatter instead of duplicating', () => {
@@ -297,7 +297,7 @@ agents:
       assert.ok(!isFileManuallyModified(devPath), 'Should not be detected as manually modified');
     });
 
-    it('orchestrator agent contains merged rule content', () => {
+    it('orchestrator agent contains assembly schema and slash-command pointer', () => {
       const projectDir = join(tmpDir, 'agent-test-orch-rules');
       mkdirSync(projectDir, { recursive: true });
 
@@ -319,15 +319,11 @@ methodology:
       const orchPath = join(paths.agentsDir, 'orchestrator.md');
       const content = readFileSync(orchPath, 'utf8');
 
-      // Should contain identity content (from former orchestrator-identity.md)
-      assert.ok(content.includes('Agent Team'), 'Should contain Agent Team table from identity rules');
-      assert.ok(content.includes('Anti-Patterns'), 'Should contain Anti-Patterns section from identity rules');
-      assert.ok(content.includes('Terminology'), 'Should contain Terminology section from identity rules');
-
-      // Should contain methodology content (from former orchestrator-methodology.md)
-      assert.ok(content.includes('MANDATORY Entry Point Routing'), 'Should contain Entry Point Routing from methodology rules');
-      assert.ok(content.includes('Orchestration Modes'), 'Should contain Orchestration Modes from methodology rules');
-      assert.ok(content.includes('Multi-Perspective Review'), 'Should contain Multi-Perspective Review from methodology rules');
+      // Post-Option-C invariants: slash-command pointer + bmad-assembly schema + signal-lens table
+      assert.ok(content.includes('/identity-orchestrator'), 'Should reference /identity-orchestrator slash command');
+      assert.ok(content.includes('bmad-assembly'), 'Should contain bmad-assembly schema');
+      assert.ok(content.includes('Signal'), 'Should contain Signal -> lens lookup section');
+      assert.ok(content.includes('code-quality'), 'Signal-lens table should include code-quality lens');
     });
 
     it('orchestrator agent has no duplicate section headers', () => {
@@ -350,25 +346,21 @@ stack:
       const orchPath = join(paths.agentsDir, 'orchestrator.md');
       const content = readFileSync(orchPath, 'utf8');
 
-      // Count occurrences of key section headers - each should appear exactly once
       const countMatches = (str, regex) => (str.match(regex) || []).length;
 
-      assert.equal(countMatches(content, /#+\s+Complexity Scoring/g), 1, 'Complexity Scoring should appear once');
-      assert.equal(countMatches(content, /#+\s+Team Composition by Complexity/g), 1, 'Team Composition should appear once');
-      assert.equal(countMatches(content, /#+\s+Phase Skip Rules/g), 1, 'Phase Skip Rules should appear once');
-      assert.equal(countMatches(content, /#+\s+Autonomy Override Rules/g), 1, 'Autonomy Override Rules should appear once');
-      assert.equal(countMatches(content, /#+\s+Handling Rejections/g), 1, 'Handling Rejections should appear once');
-      assert.equal(countMatches(content, /#+\s+Orchestration Modes/g), 1, 'Orchestration Modes should appear once');
-      assert.equal(countMatches(content, /#+\s+Multi-Perspective Review/g), 1, 'Multi-Perspective Review should appear once');
+      // Each canonical section appears exactly once in the slim template
+      assert.equal(countMatches(content, /#+\s+Complexity scoring/g), 1, 'Complexity scoring should appear once');
+      assert.equal(countMatches(content, /#+\s+Entry points/g), 1, 'Entry points should appear once');
+      assert.equal(countMatches(content, /#+\s+Autonomy override rules/g), 1, 'Autonomy override rules should appear once');
+      assert.equal(countMatches(content, /#+\s+Rejection handling/g), 1, 'Rejection handling should appear once');
 
-      // After dedup: abbreviated behavioral rules should be replaced by structured sections
-      // The inline "Determine the entry point" should not exist alongside the structured "MANDATORY Entry Point Routing"
-      assert.ok(!content.includes('**Determine the entry point.**'), 'Abbreviated entry point rule should be removed in favor of structured Entry Point Routing');
-      assert.ok(!content.includes('**Select the orchestration mode.**'), 'Abbreviated mode selection rule should be removed in favor of structured Orchestration Modes');
-      assert.ok(!content.includes('**Multi-perspective review for high-complexity projects.**'), 'Abbreviated multi-perspective rule should be removed in favor of structured section');
+      // Deleted sections must NOT be present in the slim rewrite
+      assert.equal(countMatches(content, /#+\s+Orchestration Modes/g), 0, 'Orchestration Modes section should be deleted');
+      assert.equal(countMatches(content, /#+\s+Multi-Perspective Review/g), 0, 'Multi-Perspective Review section should be deleted');
+      assert.equal(countMatches(content, /#+\s+Agent Team/g), 0, 'Agent Team directory should be deleted');
     });
 
-    it('orchestrator agent includes model selection guidance', () => {
+    it('orchestrator agent includes opus model selection guidance', () => {
       const projectDir = join(tmpDir, 'agent-test-model-guidance');
       mkdirSync(projectDir, { recursive: true });
 
@@ -388,11 +380,9 @@ stack:
       const orchPath = join(paths.agentsDir, 'orchestrator.md');
       const content = readFileSync(orchPath, 'utf8');
 
-      assert.ok(content.includes('Model Selection'), 'Should contain Model Selection section');
-      assert.ok(content.includes('Sonnet 4.6'), 'Should mention Sonnet 4.6 as default');
-      assert.ok(content.includes('claude-sonnet-4-6'), 'Should include Sonnet model ID');
-      assert.ok(content.includes('Opus'), 'Should mention Opus availability');
-      assert.ok(content.includes('claude-opus-4-6'), 'Should include Opus model ID');
+      assert.ok(content.includes('Model selection'), 'Should contain Model selection section');
+      assert.ok(content.includes('opus'), 'Should mention opus as default');
+      assert.ok(content.includes('defaults.model'), 'Should reference swarm.yaml defaults.model');
     });
 
     it('uses ejected override when present', () => {
@@ -518,198 +508,18 @@ methodology:
       assert.ok(!content.includes('require_human_approval_list'), 'Should not contain raw placeholder');
     });
 
-    it('renders autonomy description for auto mode', () => {
-      const projectDir = join(tmpDir, 'claudemd-auto');
+    it('slim CLAUDE.md points at /identity-orchestrator slash command', () => {
+      const projectDir = join(tmpDir, 'claudemd-slim-pointer');
       mkdirSync(projectDir, { recursive: true });
       const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: auto-test
-stack:
-  language: JavaScript
-methodology:
-  autonomy: auto
-`);
+      writeFileSync(configPath, 'project:\n  name: slim-test\nstack:\n  language: JS\n');
       const config = loadSwarmConfig(configPath);
       const paths = getProjectPaths(projectDir);
       generateClaudeMd(config, paths);
       const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(content.includes('fully autonomously'), 'Should contain auto mode description');
-    });
-
-    it('renders autonomy description for guided mode', () => {
-      const projectDir = join(tmpDir, 'claudemd-guided');
-      mkdirSync(projectDir, { recursive: true });
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: guided-test
-stack:
-  language: JavaScript
-methodology:
-  autonomy: guided
-`);
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateClaudeMd(config, paths);
-      const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(content.includes('pauses at phase boundaries for human review'), 'Should contain guided mode description');
-    });
-
-    it('renders autonomy description for collaborative mode', () => {
-      const projectDir = join(tmpDir, 'claudemd-collab');
-      mkdirSync(projectDir, { recursive: true });
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: collab-test
-stack:
-  language: JavaScript
-methodology:
-  autonomy: collaborative
-`);
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateClaudeMd(config, paths);
-      const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(content.includes('pauses at phase boundaries AND within phases'), 'Should contain collaborative mode description');
-    });
-
-    it('includes bmad-swarm start note', () => {
-      const projectDir = join(tmpDir, 'claudemd-start-note');
-      mkdirSync(projectDir, { recursive: true });
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, 'project:\n  name: start-test\nstack:\n  language: JS\n');
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateClaudeMd(config, paths);
-      const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(content.includes('bmad-swarm start'), 'Should include bmad-swarm start note');
-      assert.ok(content.includes('.claude/rules/'), 'Should reference rules directory');
-    });
-
-    it('renders conditional stack sections', () => {
-      const projectDir = join(tmpDir, 'claudemd-stack');
-      mkdirSync(projectDir, { recursive: true });
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: stack-test
-stack:
-  language: TypeScript
-  framework: Next.js
-  database: PostgreSQL
-  testing: Jest
-`);
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateClaudeMd(config, paths);
-      const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(content.includes('Next.js'), 'Should include framework');
-      assert.ok(content.includes('PostgreSQL'), 'Should include database');
-      assert.ok(content.includes('Jest'), 'Should include testing');
-    });
-
-    it('omits conditional sections when stack values missing', () => {
-      const projectDir = join(tmpDir, 'claudemd-minimal');
-      mkdirSync(projectDir, { recursive: true });
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: minimal-test
-stack:
-  language: JavaScript
-`);
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateClaudeMd(config, paths);
-      const content = readFileSync(paths.claudeMd, 'utf8');
-      assert.ok(!content.includes('Framework'), 'Should not include Framework section');
-      assert.ok(!content.includes('Database'), 'Should not include Database section');
-      assert.ok(!content.includes('Testing'), 'Should not include Testing section');
-    });
-  });
-
-  describe('System Prompt Generator', () => {
-    it('generates system-prompt.txt', () => {
-      const projectDir = join(tmpDir, 'sysprompt-test-1');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: prompt-test
-  type: web-app
-stack:
-  language: TypeScript
-methodology:
-  autonomy: auto
-`);
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      const result = generateSystemPrompt(config, paths);
-
-      assert.ok(existsSync(paths.systemPrompt), 'system-prompt.txt should exist');
-      assert.equal(result.modified, false, 'Should not be marked as modified');
-
-      const content = readFileSync(paths.systemPrompt, 'utf8');
-      assert.ok(content.includes('orchestrator'), 'Should include orchestrator');
-      assert.ok(content.includes('Five Rules'), 'Should include Five Rules');
-    });
-
-    it('skips when manually modified', () => {
-      const projectDir = join(tmpDir, 'sysprompt-test-2');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: prompt-test-2
-stack:
-  language: JavaScript
-`);
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-
-      // First generate normally
-      generateSystemPrompt(config, paths);
-
-      // Now manually modify the file (change content but keep the hash header)
-      const existing = readFileSync(paths.systemPrompt, 'utf8');
-      writeFileSync(paths.systemPrompt, existing + '\n# My custom addition\n');
-
-      // Should skip because content was modified
-      const result = generateSystemPrompt(config, paths);
-      assert.equal(result.modified, true, 'Should detect manual modification');
-    });
-
-    it('overwrites when force is set', () => {
-      const projectDir = join(tmpDir, 'sysprompt-test-3');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, `
-project:
-  name: prompt-test-3
-stack:
-  language: JavaScript
-`);
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-
-      // First generate normally
-      generateSystemPrompt(config, paths);
-
-      // Manually modify
-      const existing = readFileSync(paths.systemPrompt, 'utf8');
-      writeFileSync(paths.systemPrompt, existing + '\n# Modified\n');
-
-      // Force should overwrite
-      const result = generateSystemPrompt(config, paths, { force: true });
-      assert.equal(result.modified, false, 'Should overwrite when forced');
+      assert.ok(content.includes('/identity-orchestrator'), 'Should point at /identity-orchestrator');
+      assert.ok(content.includes('bmad-assembly'), 'Should require bmad-assembly block before TeamCreate');
+      assert.ok(content.includes('opus'), 'Should mention opus default model');
     });
   });
 
@@ -782,41 +592,6 @@ stack:
       assert.equal(result.generated.length, 5, 'Should regenerate all 5');
     });
 
-    it('generates task-tool-warning hook', () => {
-      const projectDir = join(tmpDir, 'hooks-test-4');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, 'project:\n  name: test\n');
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateHooks(config, paths);
-
-      const hookPath = join(paths.hooksDir, 'task-tool-warning.cjs');
-      assert.ok(existsSync(hookPath), 'task-tool-warning.cjs should exist');
-      const content = readFileSync(hookPath, 'utf8');
-      assert.ok(content.includes('TeamCreate'), 'Should mention TeamCreate');
-      assert.ok(content.includes('Task tool'), 'Should mention Task tool');
-    });
-
-    it('uses JSON.stringify for project name in identity hook', () => {
-      const projectDir = join(tmpDir, 'hooks-test-5');
-      mkdirSync(projectDir, { recursive: true });
-
-      const configPath = join(projectDir, 'swarm.yaml');
-      writeFileSync(configPath, "project:\n  name: \"Test's \\\"Project\\\"\"\n");
-
-      const config = loadSwarmConfig(configPath);
-      const paths = getProjectPaths(projectDir);
-      generateHooks(config, paths);
-
-      const hookPath = join(paths.hooksDir, 'identity-reinject.cjs');
-      const content = readFileSync(hookPath, 'utf8');
-      // Should not contain the old .replace(/'/g, ...) pattern
-      assert.ok(!content.includes(".replace"), 'Should not use string replace for escaping');
-    });
-
     it('all generated hook files contain valid JavaScript', () => {
       const projectDir = join(tmpDir, 'hooks-test-valid-js');
       mkdirSync(projectDir, { recursive: true });
@@ -844,7 +619,7 @@ stack:
       }
     });
 
-    it('generates SessionStart hooks (identity-reinject)', () => {
+    it('generates post-compact-reinject hook', () => {
       const projectDir = join(tmpDir, 'hooks-test-session');
       mkdirSync(projectDir, { recursive: true });
 
@@ -855,17 +630,16 @@ stack:
       const paths = getProjectPaths(projectDir);
       generateHooks(config, paths);
 
-      const hookPath = join(paths.hooksDir, 'identity-reinject.cjs');
-      assert.ok(existsSync(hookPath), 'identity-reinject.cjs should exist');
+      const hookPath = join(paths.hooksDir, 'post-compact-reinject.cjs');
+      assert.ok(existsSync(hookPath), 'post-compact-reinject.cjs should exist');
 
       const content = readFileSync(hookPath, 'utf8');
-      assert.ok(content.includes('IDENTITY REMINDER'), 'Should contain identity reminder text');
-      assert.ok(content.includes('orchestrator'), 'Should reference orchestrator role');
-      assert.ok(content.includes('session-test'), 'Should include project name');
+      assert.ok(content.includes('/identity-orchestrator'), 'Should point at /identity-orchestrator slash command');
+      assert.ok(content.includes('Context was compacted'), 'Should announce compaction');
       assert.ok(content.includes('.session-active'), 'Should clear session marker on compaction');
     });
 
-    it('generates user-prompt-submit hook', () => {
+    it('generates user-prompt-submit hook (minimal reminder, no orchestrator.md read)', () => {
       const projectDir = join(tmpDir, 'hooks-test-user-prompt');
       mkdirSync(projectDir, { recursive: true });
 
@@ -880,8 +654,123 @@ stack:
       assert.ok(existsSync(hookPath), 'user-prompt-submit.cjs should exist');
 
       const content = readFileSync(hookPath, 'utf8');
-      assert.ok(content.includes('orchestrator.md'), 'Should reference orchestrator.md on first message');
+      assert.ok(!content.includes('orchestrator.md'), 'Must NOT read orchestrator.md (B-2/B-6 fix)');
+      assert.ok(content.includes('/identity-orchestrator'), 'Should point at /identity-orchestrator slash command');
       assert.ok(content.includes('.session-active'), 'Should use session marker file');
+    });
+
+    it('generates teamcreate-gate hook', () => {
+      const projectDir = join(tmpDir, 'hooks-test-teamcreate-gate');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: test\n');
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateHooks(config, paths);
+
+      const hookPath = join(paths.hooksDir, 'teamcreate-gate.cjs');
+      assert.ok(existsSync(hookPath), 'teamcreate-gate.cjs should exist');
+      const content = readFileSync(hookPath, 'utf8');
+      assert.ok(content.includes("permissionDecision: 'deny'") || content.includes('permissionDecision: \'deny\''), 'Should deny when assembly block missing');
+      assert.ok(content.includes('bmad-assembly'), 'Should look for bmad-assembly block');
+      assert.ok(content.includes('transcript_path'), 'Should read transcript from event');
+    });
+
+    it('generates orchestrator-write-gate hook', () => {
+      const projectDir = join(tmpDir, 'hooks-test-write-gate');
+      mkdirSync(projectDir, { recursive: true });
+
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: test\n');
+
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateHooks(config, paths);
+
+      const hookPath = join(paths.hooksDir, 'orchestrator-write-gate.cjs');
+      assert.ok(existsSync(hookPath), 'orchestrator-write-gate.cjs should exist');
+      const content = readFileSync(hookPath, 'utf8');
+      assert.ok(content.includes("AGENT_ROLE"), 'Should gate on AGENT_ROLE env');
+      assert.ok(content.includes("'orchestrator'"), 'Should check for orchestrator role');
+      assert.ok(content.includes('artifacts') && content.includes('context'), 'Should allow artifacts/context/');
+    });
+  });
+
+  describe('Commands Generator', () => {
+    it('generates identity commands for each enabled agent', () => {
+      const projectDir = join(tmpDir, 'cmd-test-identity');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      // Must generate agents first so identity command bodies can include their content
+      generateAgents(config, paths);
+      const result = generateCommands(config, paths);
+
+      const commandsDir = join(paths.claudeDir, 'commands');
+      const identityCount = result.generated.filter(n => n.startsWith('identity-')).length;
+      assert.ok(identityCount >= 9, `Should generate at least 9 identity commands (got ${identityCount})`);
+      assert.ok(existsSync(join(commandsDir, 'identity-orchestrator.md')), 'identity-orchestrator.md should exist');
+    });
+
+    it('generates 8 workflow commands', () => {
+      const projectDir = join(tmpDir, 'cmd-test-workflow');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+      const result = generateCommands(config, paths);
+
+      const commandsDir = join(paths.claudeDir, 'commands');
+      const workflows = ['bug', 'feature', 'research', 'audit', 'brainstorm', 'migrate', 'review', 'plan'];
+      for (const wf of workflows) {
+        assert.ok(existsSync(join(commandsDir, `${wf}.md`)), `${wf}.md should exist`);
+      }
+    });
+
+    it('identity command body contains agent content (stripped of hash header)', () => {
+      const projectDir = join(tmpDir, 'cmd-test-body');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+      generateCommands(config, paths);
+
+      const body = readFileSync(join(paths.claudeDir, 'commands', 'identity-orchestrator.md'), 'utf8');
+      // No inner hash-header leak from the agent file
+      assert.ok(!body.includes('<!-- bmad-generated:') || body.indexOf('<!-- bmad-generated:') === 0,
+        'Agent hash header should be stripped from command body');
+      // Should include the orchestrator's invariants
+      assert.ok(body.includes('/identity-orchestrator') || body.includes('bmad-assembly'),
+        'Command body should include orchestrator identity content');
+    });
+
+    it('skips manually modified commands; force overwrites', () => {
+      const projectDir = join(tmpDir, 'cmd-test-mod');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+      generateCommands(config, paths);
+
+      const bugPath = join(paths.claudeDir, 'commands', 'bug.md');
+      const existing = readFileSync(bugPath, 'utf8');
+      writeFileSync(bugPath, existing + '\n# edited\n');
+
+      const second = generateCommands(config, paths);
+      assert.ok(second.modified.includes('bug.md'), 'Should flag bug.md as manually modified');
+
+      const forced = generateCommands(config, paths, { force: true });
+      assert.ok(forced.generated.includes('bug.md'), 'Force should regenerate bug.md');
     });
   });
 });

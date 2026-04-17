@@ -46,7 +46,7 @@ describe('Doctor Command', () => {
     mkdirSync(dir, { recursive: true });
     execSync(`node "${CLI}" init -y`, { cwd: dir, encoding: 'utf8' });
     // Delete one agent
-    const agentPath = join(dir, '.claude', 'agents', 'qa.md');
+    const agentPath = join(dir, '.claude', 'agents', 'developer.md');
     if (existsSync(agentPath)) {
       rmSync(agentPath);
     }
