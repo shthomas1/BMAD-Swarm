@@ -5,19 +5,15 @@ const TOKENS_PER_AGENT = {
   researcher: { min: 20000, max: 60000 },
   strategist: { min: 15000, max: 45000 },
   architect: { min: 20000, max: 50000 },
-  'story-engineer': { min: 10000, max: 30000 },
   developer: { min: 30000, max: 100000 },
   reviewer: { min: 15000, max: 40000 },
-  qa: { min: 15000, max: 40000 },
   devops: { min: 15000, max: 40000 },
   security: { min: 15000, max: 45000 },
-  'tech-writer': { min: 10000, max: 25000 },
-  retrospective: { min: 10000, max: 25000 },
 };
 
-// Claude pricing (per 1M tokens) - as of 2026 estimates
-const PRICE_PER_1M_INPUT = 3.00;
-const PRICE_PER_1M_OUTPUT = 15.00;
+// Claude Opus pricing (per 1M tokens)
+const PRICE_PER_1M_INPUT = 15.00;
+const PRICE_PER_1M_OUTPUT = 75.00;
 const INPUT_OUTPUT_RATIO = 0.6; // ~60% input, 40% output
 
 /**
@@ -57,7 +53,7 @@ export function estimateCost(config, entryPoint = 'full-lifecycle') {
 }
 
 function determineAgents(config, entryPoint) {
-  const allAgents = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'story-engineer', 'developer', 'reviewer', 'qa', 'devops', 'security', 'tech-writer', 'retrospective'];
+  const allAgents = ['orchestrator', 'ideator', 'researcher', 'strategist', 'architect', 'developer', 'reviewer', 'security', 'devops'];
 
   const entryPointAgents = {
     'solo': ['developer'],
@@ -68,7 +64,7 @@ function determineAgents(config, entryPoint) {
     'explore-idea': ['ideator', 'researcher'],
     'debug': ['developer', 'reviewer'],
     'migrate': ['architect', 'developer', 'reviewer'],
-    'audit': ['researcher', 'reviewer'],
+    'audit': ['researcher', 'reviewer', 'security'],
     'maintain': ['developer', 'reviewer'],
   };
 

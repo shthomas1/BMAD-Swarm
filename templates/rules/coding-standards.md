@@ -1,6 +1,8 @@
 ---
 paths:
   - "{{output.code_dir}}/**/*"
+  - "artifacts/implementation/**/*"
+  - "artifacts/design/**/*"
 ---
 
 # Coding Standards

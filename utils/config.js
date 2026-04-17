@@ -99,6 +99,10 @@ function applyDefaults(raw) {
   config.output.artifacts_dir = config.output.artifacts_dir || './artifacts';
   config.output.code_dir = config.output.code_dir || './src';
 
+  // Default model: opus for every teammate unless overridden per-agent
+  config.defaults = config.defaults || {};
+  if (!config.defaults.model) config.defaults.model = 'opus';
+
   return config;
 }
 

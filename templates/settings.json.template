@@ -1,16 +1,31 @@
 {
   "permissions": {
     "allow": [
-      "Bash(*)",
-      "Edit",
-      "Write",
+      "Bash(npm:*)",
+      "Bash(node:*)",
+      "Bash(npx:*)",
+      "Bash(git:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(echo:*)",
+      "Bash(pwd)",
       "Read",
+      "Write",
+      "Edit",
       "MultiEdit",
-      "Task",
-      "WebSearch",
+      "Glob",
+      "Grep",
       "WebFetch",
-      "TodoRead",
-      "TodoWrite"
+      "WebSearch",
+      "TeamCreate",
+      "TaskCreate",
+      "TaskGet",
+      "TaskList",
+      "TaskUpdate",
+      "SendMessage"
     ]
+  },
+  "env": {
+    "AGENT_ROLE": "orchestrator"
   }
 }

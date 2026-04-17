@@ -55,10 +55,8 @@ export function generateAgents(config, projectPaths, options = {}) {
     }
     let content = readFileSync(packageTemplatePath, 'utf8');
 
-    // Layer 2: Apply swarm.yaml overrides
-    if (agentConfig) {
-      content = applyAgentOverrides(content, agentConfig, agentName, config);
-    }
+    // Layer 2: Apply swarm.yaml overrides (always run so defaults.model applies even without per-agent config)
+    content = applyAgentOverrides(content, agentConfig || {}, agentName, config);
 
     writeGeneratedFile(outputPath, content);
     generated.push(agentName);
@@ -89,9 +87,10 @@ function applyAgentOverrides(content, agentConfig, agentName, config) {
     }
   }
 
-  // Add model as YAML frontmatter if specified
-  if (agentConfig.model) {
-    content = applyModelFrontmatter(content, agentConfig.model);
+  // Add model as YAML frontmatter. Prefer agent override, fall back to config.defaults.model.
+  const effectiveModel = agentConfig.model || config.defaults?.model;
+  if (effectiveModel) {
+    content = applyModelFrontmatter(content, effectiveModel);
   }
 
   // Add isolation as YAML frontmatter if specified
