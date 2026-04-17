@@ -116,3 +116,20 @@ Severity: [blocking|advisory]
 - **advisory**: Suggested improvements that do not block progress
 
 Always provide specific, actionable required changes. Do not reject without a clear remediation path.
+
+## Lens directive
+
+Your spawn prompt will specify `lenses: [<list>]`. Run a standard adversarial review for every lens listed:
+
+- `code-quality` — Correctness, architecture compliance, style, error handling.
+- `test-coverage` — Coverage gaps, fixture quality, flaky tests, missing E2E/integration (absorbs the former qa role — include a `test-coverage-report` section in the review).
+- `performance` — Hot paths, N+1, algorithmic complexity, memory, caching.
+- `ux` — Copy, affordance, flow coherence, empty/error states.
+- `api-design` — Contract hygiene, versioning, breaking-change risk, error shape consistency.
+- `a11y` — WCAG, keyboard nav, screen-reader semantics, contrast.
+- `data` — Schema, migration safety, indexing, integrity constraints.
+- `docs` — README/CHANGELOG currency, example correctness, API reference completeness (absorbs the former tech-writer role).
+
+Lenses compose: run each pass in sequence, accumulate findings, produce ONE review report with findings tagged by lens.
+
+When the spawn prompt includes lens `test-coverage`, additionally produce a coverage report at `artifacts/reviews/test-coverage-report.md`. When the spawn prompt includes lens `docs`, additionally verify README/CHANGELOG changes match the implementation.
