@@ -535,7 +535,7 @@ methodology:
       const paths = getProjectPaths(projectDir);
       const result = generateHooks(config, paths);
 
-      assert.equal(result.generated.length, 5, 'Should generate 5 hooks');
+      assert.equal(result.generated.length, 4, 'Should generate 4 hooks');
       assert.equal(result.skipped.length, 0, 'No hooks should be skipped');
       for (const hookPath of result.generated) {
         assert.ok(existsSync(hookPath), `Hook should exist: ${hookPath}`);
@@ -560,15 +560,15 @@ methodology:
       generateHooks(config, paths);
 
       // Manually modify one hook
-      const hookPath = join(paths.hooksDir, 'TaskCompleted.cjs');
+      const hookPath = join(paths.hooksDir, 'user-prompt-submit.cjs');
       const existing = readFileSync(hookPath, 'utf8');
       writeFileSync(hookPath, existing + '\n// my custom change\n');
 
       // Second generation should skip the modified hook
       const result = generateHooks(config, paths);
       assert.equal(result.skipped.length, 1, 'Should skip 1 modified hook');
-      assert.ok(result.skipped[0].includes('TaskCompleted'), 'Should skip TaskCompleted');
-      assert.equal(result.generated.length, 4, 'Should regenerate the other 4');
+      assert.ok(result.skipped[0].includes('user-prompt-submit'), 'Should skip user-prompt-submit');
+      assert.equal(result.generated.length, 3, 'Should regenerate the other 3');
     });
 
     it('overwrites modified hooks with force option', () => {
@@ -583,13 +583,13 @@ methodology:
 
       // Generate, modify, force regenerate
       generateHooks(config, paths);
-      const hookPath = join(paths.hooksDir, 'TaskCompleted.cjs');
+      const hookPath = join(paths.hooksDir, 'user-prompt-submit.cjs');
       const existing = readFileSync(hookPath, 'utf8');
       writeFileSync(hookPath, existing + '\n// modified\n');
 
       const result = generateHooks(config, paths, { force: true });
       assert.equal(result.skipped.length, 0, 'Should skip nothing with force');
-      assert.equal(result.generated.length, 5, 'Should regenerate all 5');
+      assert.equal(result.generated.length, 4, 'Should regenerate all 4');
     });
 
     it('all generated hook files contain valid JavaScript', () => {
@@ -772,7 +772,7 @@ methodology:
       assert.ok(existsSync(join(commandsDir, 'identity-orchestrator.md')), 'identity-orchestrator.md should exist');
     });
 
-    it('generates 8 workflow commands', () => {
+    it('generates 9 workflow commands', () => {
       const projectDir = join(tmpDir, 'cmd-test-workflow');
       mkdirSync(projectDir, { recursive: true });
       const configPath = join(projectDir, 'swarm.yaml');
@@ -783,10 +783,56 @@ methodology:
       const result = generateCommands(config, paths);
 
       const commandsDir = join(paths.claudeDir, 'commands');
-      const workflows = ['bug', 'feature', 'research', 'audit', 'brainstorm', 'migrate', 'review', 'plan'];
+      const workflows = ['bug', 'feature', 'research', 'audit', 'brainstorm', 'explore-idea', 'migrate', 'review', 'plan'];
       for (const wf of workflows) {
         assert.ok(existsSync(join(commandsDir, `${wf}.md`)), `${wf}.md should exist`);
       }
+    });
+
+    it('brainstorm command uses overlay pattern (no assembly block, reads ideator.md)', () => {
+      const projectDir = join(tmpDir, 'cmd-test-brainstorm-overlay');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+      generateCommands(config, paths);
+
+      const commandsDir = join(paths.claudeDir, 'commands');
+      const content = readFileSync(join(commandsDir, 'brainstorm.md'), 'utf8');
+      // Per D-BRN-1: /brainstorm is an overlay process step, not a teammate spawn.
+      // The command body is allowed to mention "bmad-assembly" in prose ("Do NOT emit
+      // a bmad-assembly block"), but must not contain an actual fenced block.
+      assert.ok(!/```bmad-assembly/.test(content),
+        'brainstorm command must NOT emit a fenced bmad-assembly block in overlay mode');
+      assert.ok(content.includes('Do NOT') && /bmad-assembly|TeamCreate/.test(content),
+        'brainstorm command should explicitly forbid assembly block / TeamCreate');
+      assert.ok(content.includes('agents/ideator.md'),
+        'brainstorm command must instruct the orchestrator to Read agents/ideator.md');
+      assert.ok(content.includes('brainstorm mode') || content.includes('overlay'),
+        'brainstorm command must frame itself as overlay/process-step mode');
+    });
+
+    it('explore-idea command is Mode B: ideator overlay + researcher parallel spawn', () => {
+      const projectDir = join(tmpDir, 'cmd-test-explore-idea');
+      mkdirSync(projectDir, { recursive: true });
+      const configPath = join(projectDir, 'swarm.yaml');
+      writeFileSync(configPath, 'project:\n  name: cmd-test\nstack:\n  language: JS\n');
+      const config = loadSwarmConfig(configPath);
+      const paths = getProjectPaths(projectDir);
+      generateAgents(config, paths);
+      generateCommands(config, paths);
+
+      const commandsDir = join(paths.claudeDir, 'commands');
+      const content = readFileSync(join(commandsDir, 'explore-idea.md'), 'utf8');
+      // Mode B: overlay + researcher spawn.
+      assert.ok(content.includes('agents/ideator.md') || /ideator.md/i.test(content),
+        'explore-idea must use the ideator overlay (Mode B)');
+      assert.ok(content.includes('bmad-assembly'),
+        'explore-idea must emit a bmad-assembly block for the parallel researcher spawn');
+      assert.ok(content.includes('researcher'),
+        'explore-idea must spawn a researcher teammate in parallel with the overlay');
     });
 
     it('identity command body contains agent content (stripped of hash header)', () => {

@@ -1,5 +1,6 @@
 import { resolve, join } from 'node:path';
 import { existsSync, unlinkSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { readFileSafe, updateGitignore } from '../utils/fs-helpers.js';
 import { getProjectPaths } from '../utils/paths.js';
 import { loadSwarmConfig } from '../utils/config.js';
@@ -202,5 +203,51 @@ async function runUpdate(options) {
     updateGitignore(projectRoot);
   }
 
+  // Post-install probe: verify the orchestrator-write-gate accepts subagent
+  // payload fields as the identity signal (HARN-1 regression guard).
+  // Fires a synthetic hook event; warns if the hook denies when it shouldn't.
+  // See ADR-003 §4.5 (residual risk: field-name drift under experimental flag).
+  if (!options.dryRun) {
+    probeOrchestratorWriteGate(paths);
+  }
+
   console.log('\nUpdate complete. User-owned files (swarm.yaml, overrides/, artifacts/) were not touched.');
+}
+
+/**
+ * Post-install probe for the orchestrator-write-gate.
+ * Spawns the generated hook with a synthetic subagent payload and checks that
+ * it passes through. If the hook denies, the identity check is miswired and
+ * delegated work will be blocked.
+ *
+ * This guards against Claude Code hook-payload field-name drift under the
+ * experimental agent-teams flag: the hook's two-layer check depends on
+ * `event.agent_id`/`event.agent_type` being populated on subagent calls. A
+ * silent rename would regress HARN-1 at runtime; this probe catches it at
+ * install time instead.
+ *
+ * @param {object} paths - project paths from getProjectPaths()
+ */
+function probeOrchestratorWriteGate(paths) {
+  const hookPath = join(paths.hooksDir, 'orchestrator-write-gate.cjs');
+  if (!existsSync(hookPath)) return;
+  const syntheticEvent = {
+    tool_input: { file_path: 'src/probe-target.js' },
+    agent_id: 'probe-subagent-id',
+    agent_type: 'developer',
+  };
+  const result = spawnSync('node', [hookPath], {
+    input: JSON.stringify(syntheticEvent),
+    encoding: 'utf8',
+    env: { ...process.env, AGENT_ROLE: 'orchestrator' },
+    timeout: 5000,
+  });
+  const denied = result.stdout && result.stdout.trim().length > 0;
+  if (denied) {
+    console.log('  ! orchestrator-write-gate probe: hook DENIED a synthetic subagent call.');
+    console.log('    This means the hook\'s identity check is not recognizing agent_id/agent_type.');
+    console.log('    Expected cause: Claude Code payload field-name drift (see ADR-003 §4.5).');
+    console.log('    Impact: all teammate Edits will be blocked by the gate (HARN-1 regression).');
+    console.log('    Workaround: set `.claude/settings.local.json` env AGENT_ROLE="" to disable the gate.');
+  }
 }

@@ -1,4 +1,4 @@
-<!-- bmad-generated:465d7dc9 -->
+<!-- bmad-generated:9fbd319f -->
 ---
 model: opus
 ---
@@ -128,6 +128,20 @@ Every `TeamCreate` spawn prompt MUST begin with: `FIRST: Invoke /identity-{role}
 ## Retrospective as process step
 
 After an epic's reviews are all approved, walk `artifacts/reviews/review-{epic}-*.md`, group findings by category (correctness, security, test coverage, architecture compliance, style), extract recurring patterns, and append a dated section to `artifacts/context/lessons-learned.md`. Do not spawn a separate agent for this; it's an orchestrator process step. Include a one-line summary of each recurring finding and a suggested preventive practice.
+
+## Brainstorming as process step
+
+When the user runs `/brainstorm` (Mode A), do NOT spawn an ideator teammate. Teammates run in isolated sessions with no direct channel to the human — conversational brainstorming through a relay is architecturally broken. Instead:
+
+1. Read `agents/ideator.md` in full. Internalize the Four Lenses, 17 brainstorming techniques, elicitation methods, and adaptive interaction rules. You are overlaying the ideator persona onto your own session for the duration of this conversation.
+2. Greet the user as a thinking partner. Ask what they want to explore.
+3. Run the conversation directly — apply lenses and techniques invisibly, do not announce them.
+4. **Check the exit condition at every turn.** Before each turn ends, ask yourself: has the user signaled readiness to build? If yes, exit now — do not take another brainstorming turn.
+5. On exit: write `artifacts/planning/brainstorm-<topic-slug>-<YYYY-MM-DD>.md` (topic, decisions with D-IDs, open questions, recommended next step), append decisions to `artifacts/context/decision-log.md`, emit a `bmad-assembly` block for the recommended next phase (typically strategist + architect).
+
+For Mode B (`/explore-idea`), run the same ideator overlay AND spawn researcher in parallel via TeamCreate with a research brief seeded from the brainstorming topic.
+
+This is an orchestrator process step — same category as the epic retrospective. The "never do work" invariant prevents you from writing code, PRDs, architectures, and stories; it does not prevent you from running a conversation that captures decisions. Brainstorming is coordination/reasoning, not delegation-worthy implementation work.
 
 ## Model selection
 

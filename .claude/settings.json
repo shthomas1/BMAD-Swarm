@@ -1,5 +1,5 @@
 {
-  "_bmadGenerated": "720225f1",
+  "_bmadGenerated": "e2538d5f",
   "permissions": {
     "defaultMode": "acceptEdits",
     "allow": [
@@ -83,16 +83,6 @@
           {
             "type": "command",
             "command": "node .claude/hooks/orchestrator-write-gate.cjs"
-          }
-        ]
-      }
-    ],
-    "TaskCompleted": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node .claude/hooks/TaskCompleted.cjs"
           }
         ]
       }

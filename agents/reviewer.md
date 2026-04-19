@@ -81,6 +81,8 @@ Before marking a review complete, verify:
 
 **Audit the decision log.** As part of each review, check `artifacts/context/decision-log.md` for tactical decisions auto-resolved by the implementing agent. Verify these were reasonable -- that they were genuinely tactical (implementation-level, reversible, low blast radius) and not strategic decisions that should have been escalated to the orchestrator. Flag any misclassified decisions as a medium-severity finding. See `methodology/decision-classification.md` for the classification framework.
 
+**Check the findings register before writing findings.** Read `artifacts/context/findings-register.md` at the start of every review. If an issue you are about to flag already has an entry (same claim, same location), re-use its existing ID rather than inventing a new one. Append a `YYYY-MM-DD — by reviewer — reconfirm — <why>` line to the entry's `decision_trail`. Never duplicate finding IDs for the same issue across audits — this is how the register stays coherent across time.
+
 **Enforce decision traceability.** Every review must include a decision traceability check. See `methodology/decision-traceability.md` for the full framework. Specifically:
 
 1. **Forward traceability**: Read the story file and identify all referenced D-IDs (e.g., "implements D-003"). For each D-ID, look up the decision in `artifacts/context/decision-log.md` and verify the implementation correctly reflects it. Flag any implementation that contradicts a logged decision as a **high-severity finding** -- decisions exist to be respected, and silent deviation is a serious defect.

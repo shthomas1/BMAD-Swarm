@@ -4,7 +4,7 @@ The orchestrator selects one of three modes based on what the human is asking fo
 
 ---
 
-## Interactive Mode (Single Agent, Human-in-the-Loop)
+## Interactive Mode (Orchestrator Overlay, Human-in-the-Loop)
 
 **When to use:**
 - Brainstorming and ideation — the human wants to explore, not execute
@@ -14,10 +14,14 @@ The orchestrator selects one of three modes based on what the human is asking fo
 - Any work that is inherently conversational and doesn't benefit from parallelism
 
 **How it works:**
-- Orchestrator spawns a single agent (ideator, strategist, or architect depending on the task)
-- That agent works directly with the human in conversation
-- No task graph, no artifact coordination — just focused dialogue
-- The agent produces artifacts (product brief, research report, architecture doc) as outputs of the conversation
+- Orchestrator reads a role file (e.g. `agents/ideator.md`) in full and **overlays** that persona onto its own session.
+- The orchestrator converses directly with the human. No teammate is spawned — teammates run in isolated sandbox sessions with no direct human channel, so conversation-through-relay destroys the turn-taking texture these activities need.
+- At session end (when the user signals readiness), the orchestrator writes a lightweight summary to `artifacts/planning/` and emits a `bmad-assembly` block to hand off to the next phase (typically strategist or architect as a parallel team).
+
+**Why overlay, not teammate spawn:**
+- Teammates communicate with the human only via `SendMessage` to team-lead, which relays to the human, which relays back. Every exchange has an orchestrator hop — high-latency, non-conversational, kills the adaptive rhythm.
+- Overlay keeps the conversation in the single agent (the orchestrator) that already has a direct channel to the human.
+- The "orchestrator never does work" invariant is preserved because these are **process steps** (parallel to the epic retrospective), not implementation work. Brainstorming is coordination/reasoning; overlay is the correct expression of that.
 
 **Why this mode exists:**
 - Brainstorming doesn't parallelize. Two agents brainstorming independently produces two mediocre lists, not one great one.
@@ -25,13 +29,16 @@ The orchestrator selects one of three modes based on what the human is asking fo
 - The overhead of task graphs and artifact coordination adds latency without value for conversational work.
 
 **Example triggers:**
+- `/brainstorm` — explicit slash command. Orchestrator overlays `agents/ideator.md`.
+- `/explore-idea` — Mode B variant. Orchestrator overlays `agents/ideator.md` AND spawns a researcher in parallel for evidence gathering.
 - "help me brainstorm features for..."
 - "let's think about the UX for..."
 - "what should the data model look like?"
 - "I'm not sure what to build yet"
-- "can we explore a few approaches?"
 
 **Complexity signal:** Score 5-7 on the complexity assessment, or any task in the Ideation/Exploration/Definition phases regardless of score.
+
+**Mode exit:** The orchestrator watches for readiness signals ("let's do this", "ok, build it", "hand it off") and checks the exit condition at every turn. On exit: write summary, log decisions, emit handoff `bmad-assembly` block.
 
 ---
 

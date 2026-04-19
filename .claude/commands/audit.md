@@ -1,4 +1,4 @@
-<!-- bmad-generated:51e9db56 -->
+<!-- bmad-generated:412b3765 -->
 ---
 description: Audit with researcher + reviewer + security
 ---
@@ -19,3 +19,5 @@ team:
     model: opus
 rationale: Multi-lens audit — researcher collects evidence, reviewer + security produce findings.
 ```
+
+After all three agents report, update `artifacts/context/findings-register.md`: add a new entry for each novel finding, or append a `YYYY-MM-DD — by <agent> — reconfirm — <why>` line to the `decision_trail` of any finding already in the register (same claim + location = same ID, do not invent new IDs for carried-forward issues).

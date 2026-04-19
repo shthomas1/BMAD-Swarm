@@ -1,4 +1,4 @@
-<!-- bmad-generated:1e161106 -->
+<!-- bmad-generated:d8e1af77 -->
 ---
 description: Load architect role identity
 ---

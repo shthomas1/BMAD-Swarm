@@ -37,11 +37,15 @@ const JS_HASH_PATTERN = /^\/\/ bmad-generated:([a-f0-9]+)\n/;
 
 /**
  * Compute a short SHA-256 hash of content (8 hex chars).
+ * Normalizes CRLF to LF so Windows (git core.autocrlf=true) and *nix produce
+ * identical hashes for the same semantic content. Without normalization a
+ * checkout on Windows would flip every hash and defeat modification detection.
  * @param {string} content
  * @returns {string}
  */
 export function contentHash(content) {
-  return createHash('sha256').update(content).digest('hex').slice(0, 8);
+  const normalized = content.replace(/\r\n/g, '\n');
+  return createHash('sha256').update(normalized).digest('hex').slice(0, 8);
 }
 
 /**
@@ -68,7 +72,13 @@ export function writeGeneratedFile(filePath, content) {
 export function isFileManuallyModified(filePath) {
   if (!existsSync(filePath)) return false;
 
-  const existing = readFileSync(filePath, 'utf8');
+  // Normalize CRLF -> LF to handle Windows git core.autocrlf=true, which
+  // converts checked-in files to CRLF on checkout. The hash was computed
+  // over LF content at write time, so the file must be normalized before
+  // comparison. Without this, the hash-pattern regexes fail to match (since
+  // they expect `\n` after the header) and the function silently returns
+  // false for both unmodified AND modified files — a broken detection path.
+  const existing = readFileSync(filePath, 'utf8').replace(/\r\n/g, '\n');
 
   // Try HTML-comment hash on line 1
   let match = existing.match(HASH_PATTERN);

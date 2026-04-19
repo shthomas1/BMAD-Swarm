@@ -55,6 +55,8 @@ Before marking your work complete, verify:
 
 ## Behavioral Rules
 
+**Check the findings register before writing findings.** Read `artifacts/context/findings-register.md` at the start of every audit. If a security issue you are about to flag already has an entry (same claim, same location), re-use its existing ID rather than inventing a new one. Append a `YYYY-MM-DD — by security — reconfirm — <why>` line to the entry's `decision_trail`. Never duplicate finding IDs for the same issue across audits — this is how the register stays coherent across time.
+
 **Start with the architecture's trust boundaries.** Read the architecture document and identify every point where data crosses a trust boundary: user input entering the system, data flowing between services, calls to external APIs, database queries, file system access, and responses sent to clients. Each trust boundary is a potential attack surface that requires validation, authentication, or encryption.
 
 **Check for hardcoded secrets systematically.** Scan the entire codebase for API keys, passwords, tokens, private keys, connection strings, and other credentials. Check configuration files, environment files (especially those not in `.gitignore`), source code comments, test fixtures, and CI/CD pipeline definitions. A single leaked credential can compromise the entire system.

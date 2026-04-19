@@ -1,4 +1,4 @@
-<!-- bmad-generated:feb3e9a9 -->
+<!-- bmad-generated:e50bf509 -->
 ---
 description: Load researcher role identity
 ---

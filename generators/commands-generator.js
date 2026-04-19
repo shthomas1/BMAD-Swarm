@@ -47,7 +47,8 @@ export function generateCommands(config, projectPaths, options = {}) {
     { name: 'feature', description: 'Start a feature with architect + developer + reviewer', body: buildFeatureBody() },
     { name: 'research', description: 'Research-only task with researcher', body: buildResearchBody() },
     { name: 'audit', description: 'Audit with researcher + reviewer + security', body: buildAuditBody() },
-    { name: 'brainstorm', description: 'Brainstorm with ideator (Mode A)', body: buildBrainstormBody() },
+    { name: 'brainstorm', description: 'Brainstorm with ideator overlay (Mode A — orchestrator process step)', body: buildBrainstormBody() },
+    { name: 'explore-idea', description: 'Explore an idea (Mode B — ideator overlay + researcher parallel spawn)', body: buildExploreIdeaBody() },
     { name: 'migrate', description: 'Migration with architect + developer + reviewer', body: buildMigrateBody() },
     { name: 'review', description: 'Review an artifact with lens selection', body: buildReviewBody() },
     { name: 'plan', description: 'Plan mode: produce assembly block only, do not spawn', body: buildPlanBody() },
@@ -136,21 +137,48 @@ team:
   - role: security
     model: opus
 rationale: Multi-lens audit — researcher collects evidence, reviewer + security produce findings.
-\`\`\``;
+\`\`\`
+
+After all three agents report, update \`artifacts/context/findings-register.md\`: add a new entry for each novel finding, or append a \`YYYY-MM-DD — by <agent> — reconfirm — <why>\` line to the \`decision_trail\` of any finding already in the register (same claim + location = same ID, do not invent new IDs for carried-forward issues).`;
+}
+
+function buildExploreIdeaBody() {
+  return `Enter explore-idea mode (Mode B — ideator overlay in your session + researcher spawned in parallel).
+
+Step 1 (in your session): Read \`agents/ideator.md\` in full. Overlay the ideator persona onto your own session for the conversation with the user. Apply the Four Lenses, brainstorming techniques, elicitation methods invisibly. Check the exit condition at every turn.
+
+Step 2 (parallel spawn): After your first exchange with the user — once the topic is clear enough to seed a research brief — emit the assembly block below and spawn a researcher via TeamCreate. The researcher gathers external evidence (market signals, technical feasibility, prior art, competitive landscape) while you continue the conversation with the user.
+
+\`\`\`bmad-assembly
+entry_point: explore-idea
+complexity: 7
+autonomy: auto
+team:
+  - role: researcher
+    model: opus
+rationale: Mode B — ideator overlay on orchestrator + parallel researcher for evidence gathering.
+\`\`\`
+
+Step 3 (on exit): When the user signals readiness to build, ask the researcher to finalize their report (SendMessage), then:
+- Write \`artifacts/planning/brainstorm-<topic-slug>-<YYYY-MM-DD>.md\` — the brainstorm summary (same template as /brainstorm).
+- Reference the researcher's evidence report in the summary's "open questions" / "supporting evidence" section.
+- Emit a second assembly block for the next phase (typically strategist + architect).
+
+DO NOT suppress the researcher spawn if the conversation hasn't started yet — the assembly block in Step 2 is mandatory and should go out in your first or second turn. The researcher will idle waiting for clarifying messages if needed.`;
 }
 
 function buildBrainstormBody() {
-  return `Emit:
+  return `Enter brainstorm mode (orchestrator-overlay pattern). Do NOT emit a bmad-assembly block. Do NOT call TeamCreate. Brainstorming is a conversational orchestrator process step — teammates cannot converse with the human directly, so the ideator persona overlays onto your own session instead.
 
-\`\`\`bmad-assembly
-entry_point: brainstorm
-complexity: 5
-autonomy: collaborative
-team:
-  - role: ideator
-    model: opus
-rationale: Mode A interactive brainstorming — ideator only.
-\`\`\``;
+1. Read \`agents/ideator.md\` in full. Internalize the Four Lenses, brainstorming techniques, elicitation methods, and adaptive interaction rules.
+2. Greet the user as a thinking partner. Ask what they want to explore.
+3. Run the conversation directly. Apply lenses and techniques invisibly — do not announce them.
+4. Track decisions internally as they emerge. Append D-IDs to \`artifacts/context/decision-log.md\` (tactical = one-line, strategic = full record).
+5. **Check the exit condition at every turn.** Before your turn ends, ask: has the user signaled readiness to build ("let's do this", "ok, build it", "hand it off")? If yes, exit now — do not take another brainstorming turn.
+6. On exit:
+   - Write \`artifacts/planning/brainstorm-<topic-slug>-<YYYY-MM-DD>.md\` containing: topic, key decisions with D-IDs, open questions, recommended next step.
+   - Emit a \`bmad-assembly\` block for the recommended next phase (typically strategist for product brief + architect if architecture questions surfaced).
+7. If the conversation reveals the idea needs substantial external research before it can be shaped further, suggest the user run \`/explore-idea\` (Mode B — ideator overlay + researcher in parallel). Do NOT silently spawn a researcher yourself mid-brainstorm.`;
 }
 
 function buildMigrateBody() {

@@ -1,7 +1,12 @@
 {
   "permissions": {
     "allow": [
-      "WebFetch(domain:buildermethods.com)"
+      "WebFetch(domain:buildermethods.com)",
+      "Bash(printf '%s\\\\n' \"const n='a\\\\\\\\\\\\\\\\r\\\\\\\\\\\\\\\\n';console.log\\(JSON.stringify\\(n\\),n.length\\)\")",
+      "Read(//tmp/**)",
+      "Bash(rm /tmp/bmad-gate-probe.txt)",
+      "Bash(printf a\\\\\\\\\\\\\\\\b\\\\n *)",
+      "Bash(AGENT_ROLE=orchestrator node .claude/hooks/orchestrator-write-gate.cjs)"
     ]
   }
 }

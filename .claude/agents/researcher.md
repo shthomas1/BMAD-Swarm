@@ -1,4 +1,4 @@
-<!-- bmad-generated:4289af9e -->
+<!-- bmad-generated:d541d279 -->
 ---
 model: opus
 ---

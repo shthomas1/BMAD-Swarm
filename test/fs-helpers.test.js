@@ -178,5 +178,59 @@ describe('FS Helpers', () => {
 
       assert.equal(isFileManuallyModified(filePath), true);
     });
+
+    // V-3 regression: on Windows with core.autocrlf=true, generated files
+    // are read back with CRLF line endings even though the hash was computed
+    // over LF content. Without CRLF normalization, every generated file
+    // would appear "manually modified" after a git checkout on Windows.
+    it('returns false for CRLF-converted markdown file (Windows autocrlf)', () => {
+      const filePath = join(tmpDir, 'crlf-md.md');
+      writeGeneratedFile(filePath, '# Generated\nWith multiple lines\n');
+
+      // Simulate git core.autocrlf=true converting LF to CRLF on checkout
+      const lfContent = readFileSync(filePath, 'utf8');
+      const crlfContent = lfContent.replace(/\n/g, '\r\n');
+      writeFileSync(filePath, crlfContent);
+
+      assert.equal(isFileManuallyModified(filePath), false,
+        'CRLF-converted file must not appear manually modified');
+    });
+
+    it('returns false for CRLF-converted JS file (Windows autocrlf)', () => {
+      const filePath = join(tmpDir, 'crlf-js.cjs');
+      writeGeneratedJsFile(filePath, 'console.log("hello");\nconsole.log("world");\n');
+
+      const lfContent = readFileSync(filePath, 'utf8');
+      const crlfContent = lfContent.replace(/\n/g, '\r\n');
+      writeFileSync(filePath, crlfContent);
+
+      assert.equal(isFileManuallyModified(filePath), false,
+        'CRLF-converted JS file must not appear manually modified');
+    });
+
+    it('returns false for CRLF-converted JS file with shebang', () => {
+      const filePath = join(tmpDir, 'crlf-shebang.cjs');
+      writeGeneratedJsFile(filePath, '#!/usr/bin/env node\nconst x = 1;\nconsole.log(x);\n');
+
+      const lfContent = readFileSync(filePath, 'utf8');
+      const crlfContent = lfContent.replace(/\n/g, '\r\n');
+      writeFileSync(filePath, crlfContent);
+
+      assert.equal(isFileManuallyModified(filePath), false,
+        'CRLF-converted shebang file must not appear manually modified');
+    });
+
+    it('returns true for genuinely modified CRLF file', () => {
+      // After CRLF conversion, real modifications are still caught
+      const filePath = join(tmpDir, 'crlf-tampered.md');
+      writeGeneratedFile(filePath, '# Original\n');
+
+      const lfContent = readFileSync(filePath, 'utf8');
+      const crlfContent = lfContent.replace(/\n/g, '\r\n') + '\r\n# User-added line\r\n';
+      writeFileSync(filePath, crlfContent);
+
+      assert.equal(isFileManuallyModified(filePath), true,
+        'Genuine modifications are still detected after CRLF conversion');
+    });
   });
 });

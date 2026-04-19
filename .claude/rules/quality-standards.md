@@ -1,4 +1,4 @@
-<!-- bmad-generated:0c47467c -->
+<!-- bmad-generated:fa112861 -->
 # Quality Standards
 
 Quality gates are mandatory for all artifacts. Self-validate before reporting done.

@@ -1,4 +1,4 @@
-<!-- bmad-generated:45e3971d -->
+<!-- bmad-generated:a48b2da8 -->
 ---
 description: Load developer role identity
 ---

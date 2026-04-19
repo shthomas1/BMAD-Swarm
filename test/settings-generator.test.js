@@ -49,7 +49,7 @@ describe('Settings Generator', () => {
     assert.ok(content.hooks.UserPromptSubmit, 'Should have UserPromptSubmit hooks');
     assert.ok(content.hooks.SessionStart, 'Should have SessionStart hooks');
     assert.ok(content.hooks.PreToolUse, 'Should have PreToolUse hooks (TeamCreate + Edit/Write gates)');
-    assert.ok(content.hooks.TaskCompleted, 'Should have TaskCompleted hooks');
+    assert.ok(!content.hooks.TaskCompleted, 'Should NOT have TaskCompleted hooks (removed per ADR-002)');
     assert.ok(!content.hooks.PostToolUse, 'Should NOT have PostToolUse hooks (task-tool-warning removed)');
     assert.ok(!content.hooks.TeammateIdle, 'Should NOT have TeammateIdle hooks (dead capability removed)');
   });

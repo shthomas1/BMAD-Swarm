@@ -1,4 +1,4 @@
-<!-- bmad-generated:f1531507 -->
+<!-- bmad-generated:12546729 -->
 ---
 description: Load strategist role identity
 ---

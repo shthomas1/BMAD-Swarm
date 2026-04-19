@@ -2,6 +2,63 @@
 
 All notable changes to bmad-swarm.
 
+## [2.0.2] — 2026-04-18
+
+HARN-1 fix + brainstorm workflow redesign + follow-ups.
+
+### Fixed
+
+- **GATE-1: `teamcreate-gate` fence-only-message false-positive closed.** The gate previously denied `TeamCreate` when the preceding assistant message contained only a fenced `bmad-assembly` block (no leading prose) — the structured content-block walk failed to surface the fence in that shape. Added a raw-transcript-scan fallback: pass 1 keeps the typed-block walk, pass 2 regex-scans the raw JSONL lines scoped to the same recent N=5 message ids (un-escapes `\n`, capped at 50KB tail). Allows if either pass finds all 5 required keys. 2 new tests in `test/hooks.test.js`.
+- **HARN-1: `orchestrator-write-gate` env-inheritance bug resolved.** The gate previously keyed off `process.env.AGENT_ROLE` alone, which on this Windows/Claude Code harness combination is inherited by subagent teammates and caused the gate to fire on every delegated Edit/Write. Replaced with a two-layer identity check: primary signal is the hook event payload's `agent_id` / `agent_type` (Claude Code's documented subagent-vs-main-thread discriminator), secondary is the `AGENT_ROLE` env as defense-in-depth and in-session override path. 7 new tests in `test/hooks.test.js` including a regression guard that would have caught the original bug. See ADR-003 / D-003.
+
+### New
+
+- **`.claude/settings.local.json` added to orchestrator-write-gate allow-list.** Local harness-config overrides are a legitimate orchestrator write (surfaced during HARN-1 remediation).
+- **Brainstorm workflow redesigned as orchestrator-overlay pattern.** `/brainstorm` no longer spawns an ideator teammate (teammates have no direct human channel, so interactive brainstorming through a subagent is architecturally broken). Instead the orchestrator loads `agents/ideator.md` into its own session and converses directly, producing a lightweight summary at `artifacts/planning/brainstorm-<topic>-<date>.md` when the user signals readiness. Framed as a named orchestrator process step, parallel to the epic retrospective. See D-BRN-1 through D-BRN-4 in decision log and `artifacts/planning/brainstorm-workflow-eval-2026-04-16.md`. Touches: `generators/commands-generator.js` (`buildBrainstormBody`), `agents/orchestrator.md` (new section), `agents/ideator.md` (two edits), `methodology/orchestration-modes.md` (doc correction — removed claim about a mechanism the codebase does not implement).
+- **`/explore-idea` command (Mode B)** — ideator overlay in the orchestrator session + researcher spawned in parallel via TeamCreate. Tractable now that `/brainstorm` overlay pattern exists.
+- **Generator install-time probe** for `agent_id`/`agent_type` payload field presence. Guards against Anthropic API field-name drift under the experimental agent-teams flag — a silent regression to pre-HARN-1 state. Probe runs on `bmad-swarm update` and emits a warning if the fields appear unset in a synthetic payload.
+
+### Docs
+
+- CLAUDE.md §Permission model updated with a one-sentence note on the two-layer identity check.
+- `methodology/orchestration-modes.md` corrected — prior text described "human-in-the-loop teammate conversation" as a mechanism, but teammates have no direct human channel. Rewritten to describe the overlay pattern used for brainstorming.
+
+### References
+
+- ADR-003: `artifacts/design/decisions/adr-003-orchestrator-write-gate-design.md`
+- Gate eval: `artifacts/planning/orchestrator-write-gate-eval-2026-04-16.md`
+- Brainstorm eval: `artifacts/planning/brainstorm-workflow-eval-2026-04-16.md`
+- Unified roadmap: `artifacts/planning/gate-and-brainstorm-plan-2026-04-16.md`
+
+
+## [2.0.1] — 2026-04-16
+
+Follow-up fix release addressing the three blocking findings from audit 2026-04-16 plus supporting infrastructure.
+
+### Fixed
+
+- **B-2: CRLF drift in `utils/fs-helpers.js:isFileManuallyModified`.** `contentHash()` now normalizes CRLF to LF before hashing, so Windows (git `core.autocrlf=true`) and *nix produce identical hashes for the same semantic content. Previously the read-side hash regexes silently failed to match on CRLF files and `isFileManuallyModified` returned false for both unmodified AND tampered files — a broken detection path. Closes 2.0.0 §Known issues V-3. Added 4 regression tests covering markdown, JS, shebang, and genuine-modification-after-CRLF paths.
+- **B-6: `teamcreate-gate.cjs` widened from single-message scope to last-N=5.** The gate now walks the last 5 distinct assistant `message.id` values and accepts valid assembly blocks in any of them. Also widened content-block filter from `text` only to `text` + `thinking`. Previous behavior denied on common message-split patterns (retry after transient failure, `plan → tool_use` across messages, extended-thinking orchestrators). See architect's design note and ADR-002 context.
+
+### Removed
+
+- **B-1: `TaskCompleted` hook.** Registered against a Claude Code event that does not exist (`TaskCompleted` is not in the runtime's hook taxonomy). The advisory `npm test` run on task completion never fired. Deletion closes security L-2 (advisory `execSync('npm test', ...)` code-execution chain coupled with M-1 `Bash(npm:*)` allow) permanently and eliminates reviewer A-1 (dead `taskId` variable) as a side effect. See `artifacts/design/decisions/adr-002-taskcompleted-hook-disposition.md` (D-002).
+- 2.0.0 §Known issues entry for V-3 — superseded by the B-2 fix above.
+
+### New
+
+- **Findings register** at `artifacts/context/findings-register.md`. Durable ledger of open/deferred findings across audits, so deferral decisions (e.g., "defer SEC-1 until after 2.0.0 ships") are recorded and not re-derived in every audit. Plain Markdown — no schema, no validator, no aggregator. Reviewer and security agent prompts updated to read the register before writing findings and to re-use existing IDs for carried-forward issues. Audit workflow command (`buildAuditBody` in `commands-generator.js`) emits a synthesis-time instruction to update the register. See `artifacts/planning/state-topology-eval-2026-04-16.md` for the architect's evaluation that led to this minimal-scope fix.
+- **B-3: `test/hooks.test.js`** — 32 new process-spawn tests covering the stdin→decision contract for all four hooks. Each test spawns the hook as a child process, pipes a synthetic event, and asserts the `permissionDecision` / `additionalContext` JSON. Covers: `teamcreate-gate` (10 cases including the new thinking-block + last-N=5 behaviors), `orchestrator-write-gate` (10 cases including Windows mixed-separator paths), `user-prompt-submit` (4 cases including marker suppression), `post-compact-reinject` (3 cases including marker cleanup).
+- **ADR-002** (`artifacts/design/decisions/adr-002-taskcompleted-hook-disposition.md`) and **D-002** in decision log.
+- **HARN-1** in findings register. Surfaced during implementation — the orchestrator-write-gate's assumption that teammates don't inherit `AGENT_ROLE` is broken on the Windows/Claude Code harness combination; the env IS inherited by subagents. Follow-up fix needed; out of scope for this release.
+
+### References
+
+- Audit: `artifacts/reviews/audit-2026-04-16-code.md`, `artifacts/reviews/audit-2026-04-16-security.md`, `artifacts/reviews/audit-2026-04-16-evidence.md`
+- State topology evaluation: `artifacts/planning/state-topology-eval-2026-04-16.md`
+- ADR-002: `artifacts/design/decisions/adr-002-taskcompleted-hook-disposition.md`
+
+
 ## [2.0.0] — 2026-04-16
 
 Option C restructure. Major version because this is a breaking change: agent roster, hook pipeline, permission model, and orchestrator identity mechanism all changed. Projects on 1.x must run `bmad-swarm update --force` after upgrading the CLI.
@@ -43,9 +100,9 @@ Option C restructure. Major version because this is a breaking change: agent ros
 - Orchestrator prompt review: `artifacts/reviews/orchestrator-prompt-review.md`
 - ADR-001: `artifacts/design/decisions/adr-001-permission-default-mode.md`
 
-### Known issues (V-3, follow-up patch)
+### Known issues
 
-- **Windows CRLF drift-detection bug in `utils/fs-helpers.js:isFileManuallyModified`.** On Windows checkouts the content hash is computed over LF-normalized bytes but the on-disk file has CRLF line endings, so `update` can report generated files as manually modified after a clean regen. Not blocking 2.0.0 (the `--force` flag unblocks the regeneration path). Fix is a one-liner: normalize line endings before hashing (`content.replace(/\r?\n/g, '\n')` in the hash path, or tighten the hash regexes with `\r?\n`).
+*(V-3 CRLF drift-detection bug resolved in 2.0.1 — see §Fixed above.)*
 
 
 ## [1.4.0] — 2026-04
