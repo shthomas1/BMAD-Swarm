@@ -11,6 +11,38 @@
 const fs = require('fs');
 const path = require('path');
 
+// v0.2.0 D-ID patterns (P2):
+//
+//   DECLARED_RE  matches a record heading in the decision log. Real logs in
+//                this repo use level-2 headings (`## D-001 — ...`). The schema
+//                spec uses level-3 (`### D-NNN: ...`). Tolerate either by
+//                accepting any leading `##+` count.
+//                Captures the D-ID itself.
+//                Examples that match:
+//                  "## D-001 — foo"        -> D-001
+//                  "### D-022: bar"        -> D-022
+//                  "## D-BRN-1 — baz"      -> D-BRN-1
+//
+//   REFERENCED_RE matches a D-ID anywhere in body text. Accepts:
+//                   - D-NNN (3+ digits)
+//                   - D-XXX-N (2+ uppercase letters, dash, 1+ digits)
+//                 Trailing token must contain a digit, so bare literals like
+//                 "D-ID", "D-N", "D-NNN" are rejected (NNN has no digits).
+//                 The REJECT set covers literal placeholder tokens explicitly.
+const DECLARED_RE = /^#{2,}\s+(D-[A-Z0-9]+(?:-\d+)?)\b/gm;
+const REFERENCED_RE = /\bD-(?:\d{3,}|[A-Z]{2,}-\d+)\b/g;
+const REJECT = new Set(['D-ID', 'D-N', 'D-NNN']);
+
+function isAcceptedRef(token) {
+  if (REJECT.has(token)) return false;
+  // Defensive: reject any all-letter trailing segment after the leading "D-".
+  const tail = token.slice(2); // strip "D-"
+  // Accept if tail is purely digits OR has letters-dash-digits.
+  if (/^\d{3,}$/.test(tail)) return true;
+  if (/^[A-Z]{2,}-\d+$/.test(tail)) return true;
+  return false;
+}
+
 function ok() { process.exit(0); }
 
 function readAll(dir, exts) {
@@ -43,9 +75,10 @@ function main() {
   try { log = fs.readFileSync(logPath, 'utf-8'); } catch (_) { return ok(); }
 
   const declared = new Set();
-  const declRe = /^###\s+(D-\d{3,})\s*:/gm;
   let m;
-  while ((m = declRe.exec(log)) !== null) declared.add(m[1]);
+  // Reset lastIndex defensively (regex literals are shared across calls).
+  DECLARED_RE.lastIndex = 0;
+  while ((m = DECLARED_RE.exec(log)) !== null) declared.add(m[1]);
 
   const scanRoots = [
     path.join(cwd, 'artifacts', 'planning'),
@@ -53,14 +86,17 @@ function main() {
     path.join(cwd, 'artifacts', 'implementation'),
   ];
   const referenced = new Set();
-  const refRe = /\bD-\d{3,}\b/g;
   for (const root of scanRoots) {
     const files = readAll(root, ['.md']);
     for (const f of files) {
       let text;
       try { text = fs.readFileSync(f, 'utf-8'); } catch (_) { continue; }
+      REFERENCED_RE.lastIndex = 0;
       let r;
-      while ((r = refRe.exec(text)) !== null) referenced.add(r[0]);
+      while ((r = REFERENCED_RE.exec(text)) !== null) {
+        const tok = r[0];
+        if (isAcceptedRef(tok)) referenced.add(tok);
+      }
     }
   }
 
@@ -78,4 +114,9 @@ function main() {
   return ok();
 }
 
-try { main(); } catch (_) { ok(); }
+// Export the patterns for unit testing.
+module.exports = { DECLARED_RE, REFERENCED_RE, REJECT, isAcceptedRef };
+
+if (require.main === module) {
+  try { main(); } catch (_) { ok(); }
+}

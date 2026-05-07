@@ -15,12 +15,12 @@ Verify that decisions logged in `artifacts/context/decision-log.md` are actually
 ## What you do (Claude)
 
 1. Read `artifacts/context/decision-log.md`. If it does not exist, report and stop.
-2. Extract the set **Declared** = every D-ID that appears as a record heading `### D-NNN: ...`. Use Grep with the pattern `^###\s+(D-\d{3,})\s*:`.
-3. Extract the set **Referenced** = every D-ID matched by `\bD-\d{3,}\b` in any `*.md` file under:
+2. Extract the set **Declared** = every D-ID that appears as a record heading. Tolerate both the schema-spec form `### D-NNN: ...` and the in-the-wild form `## D-NNN — ...`. Use Grep with the pattern `^##+\s+(D-[A-Z0-9]+(?:-\d+)?)\b` (captures `D-001`, `D-022`, `D-BRN-1`, etc).
+3. Extract the set **Referenced** = every D-ID matched by `\bD-(?:\d{3,}|[A-Z]{2,}-\d+)\b` in any `*.md` file under:
    - `artifacts/planning/`
    - `artifacts/design/`
    - `artifacts/implementation/`
-   Use Grep with type filter and dedupe across files.
+   Reject the literal placeholders `D-ID`, `D-N`, `D-NNN` and any token whose trailing segment after `D-` is purely letters (no digits) — these are documentation placeholders, not real references. Use Grep with type filter and dedupe across files.
 4. Compute:
    - **Orphans** = Declared \ Referenced
    - **Dangling** = Referenced \ Declared

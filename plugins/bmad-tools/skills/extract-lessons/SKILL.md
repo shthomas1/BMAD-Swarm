@@ -10,10 +10,10 @@ Cluster review findings for a named epic into a structured lessons-learned appen
 
 ## Inputs
 
-`$ARGUMENTS` — an epic identifier or glob pattern.
+`$ARGUMENTS` — an epic identifier or glob pattern (optional).
 
-- If `$ARGUMENTS` is empty, ask the user.
-- If it ends with `--apply`, treat the rest as the epic id and write directly to `artifacts/context/lessons-learned.md` without further confirmation (auto-mode).
+- If `$ARGUMENTS` is empty, **fall back** to scanning every `artifacts/reviews/*.md` file. Note in the output that no epic was specified and which files were used as input.
+- If it ends with `--apply`, treat the rest as the epic id (or empty for all-reviews) and write directly to `artifacts/context/lessons-learned.md` without further confirmation (auto-mode).
 - Otherwise, generate the proposed append and ask for confirmation before writing.
 
 Examples:
@@ -24,9 +24,10 @@ Examples:
 ## What you do (Claude)
 
 1. Determine the glob to scan:
+   - If the input is empty, set the file set to **every `artifacts/reviews/*.md`** (the all-reviews fallback). Note this in the output header.
    - If the input looks like an epic id (e.g. `epic-1`, `e1`), search `artifacts/reviews/` for files matching `*review*epic-1*.md` (case-insensitive) and `*review*e1*.md` and `*epic-1*review*.md`.
    - If the input contains a glob, use it directly under `artifacts/reviews/`.
-2. Use the Glob/Grep tools to enumerate matching review files. If zero files match, report and stop.
+2. Use the Glob/Grep tools to enumerate matching review files. If the input was an epic id or glob and **zero files match**, fall back to scanning **every `artifacts/reviews/*.md`** rather than failing. Note in the output header that the requested input matched no files and the fallback was used. If even the all-reviews scan finds nothing, report "no review files found" and stop.
 3. Read each review file. Extract every finding. Categorize each into one of:
    - **Coding Conventions**
    - **Test Patterns**

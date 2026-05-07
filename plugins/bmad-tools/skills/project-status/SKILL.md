@@ -15,6 +15,7 @@ Read `artifacts/` and project config to build a one-page snapshot of the current
 - Story files: !`dir /b artifacts\implementation\stories 2>nul || ls artifacts/implementation/stories 2>/dev/null`
 - Planning artifacts: !`dir /b artifacts\planning 2>nul || ls artifacts/planning 2>/dev/null`
 - Design artifacts: !`dir /b artifacts\design 2>nul || ls artifacts/design 2>/dev/null`
+- ADR files: !`dir /b artifacts\design\decisions 2>nul || ls artifacts/design/decisions 2>/dev/null`
 - Recent decisions (tail): !`powershell -Command "Get-Content artifacts/context/decision-log.md -Tail 60" 2>nul || tail -n 60 artifacts/context/decision-log.md 2>/dev/null`
 
 ## What you do (Claude)
@@ -26,9 +27,19 @@ Read `artifacts/` and project config to build a one-page snapshot of the current
    - `review` → **review**
    - `complete` → **done**
    - any line containing `blocked` → **blocked**
-   - missing status → **unknown**
-3. Scan `artifacts/context/decision-log.md` for the 5 most recent `### D-NNN:` records (highest IDs). Capture summary, status.
-4. Scan `artifacts/planning/` and `artifacts/design/` for files named like `prd*.md`, `architecture*.md`. For each, look for an explicit approval marker (`Status: approved`, `Approved by:`, or `## Approval`). If none present, list it as **pending human approval**.
+   - **missing status** → run the fallback chain below before bucketing as `unknown`:
+     - **(a) Filename heuristic**: if the filename contains `complete` or `done` (case-insensitive), bucket as **done**.
+     - **(b) Git history**: run `git log --follow -- <file>` and inspect commit subjects. If any commit subject matches `/\b(complete|completed|merged|done|implemented)\b/i`, bucket as **done**.
+     - **(c) Fall through**: if neither (a) nor (b) matches, bucket as **unknown**.
+   - When a fallback was applied, annotate the row in the dashboard (e.g. `done (inferred from git history)`).
+3. Scan `artifacts/context/decision-log.md` for the 5 most recent decision records. Tolerate both `### D-NNN:` and `## D-NNN —` heading styles. Capture summary, status. Use the regex `^##+\s+(D-[A-Z0-9]+(?:-\d+)?)\b` for declared IDs.
+4. Scan `artifacts/planning/` and `artifacts/design/` for files that play the role of PRD or architecture. Recognize **all** of:
+   - `prd*.md`
+   - `architecture*.md`
+   - `*plan*.md` (e.g. `implementation-plan.md`, `bmad-tools-v0.2-plan.md`) — counts as a PRD-equivalent planning artifact.
+   - `artifacts/design/decisions/adr-*.md` — counts as an architecture-equivalent decision record.
+
+   For each file, look for an explicit approval marker (`Status: approved`, `Approved by:`, `## Approval`, or front-matter `approved: true`). If none present, list it as **pending human approval**. Note the role (PRD-equivalent / architecture-equivalent / ADR) in the dashboard row.
 5. Render the dashboard:
 
 ```
@@ -51,10 +62,14 @@ Read `artifacts/` and project config to build a one-page snapshot of the current
 | blocked | N | ... |
 | unknown | N | ... |
 
+(Annotate inferred statuses as `done (inferred from git)` etc.)
+
 ## Pending human approvals
 
-- [ ] artifacts/planning/prd.md (no approval marker)
+- [ ] artifacts/planning/prd.md (PRD; no approval marker)
+- [ ] artifacts/planning/implementation-plan.md (PRD-equivalent plan; no approval marker)
 - [x] artifacts/design/architecture.md (Status: approved)
+- [ ] artifacts/design/decisions/adr-003-foo.md (ADR; no approval marker)
 
 ## Recent decisions
 
@@ -70,5 +85,6 @@ Read `artifacts/` and project config to build a one-page snapshot of the current
 ## Notes
 
 - Be tolerant of missing files. If `artifacts/implementation/stories/` does not exist, report `0 stories` rather than failing.
+- The `git log --follow` fallback requires the project to be a git repo. If `git` fails (not a repo, or git not installed), silently skip the (b) step and proceed to (c).
 - Do not modify any file. Read-only skill.
-- Use the Bash tool for any pieces dynamic context did not capture (e.g., specific grep patterns), but prefer Grep/Glob.
+- Use the Bash tool for the `git log` fallback and any pieces dynamic context did not capture, but prefer Grep/Glob for static lookups.
