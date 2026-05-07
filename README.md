@@ -42,6 +42,102 @@ bmad-swarm start
 - `artifacts/` -- directory structure for all methodology artifacts
 - `project.yaml` -- project state tracking
 
+## Plugins
+
+This fork ships four BMAD-native Claude Code plugin packs under `plugins/` that close UX gaps specific to autonomous-mode workflows -- where the human is supervising a multi-agent run rather than driving each edit. They are local-first and bundled with the fork; none of them are published to a public Claude Code plugin marketplace, and none are required to use bmad-swarm. Install the ones you want, ignore the rest.
+
+| Pack | Version | Purpose | Slash namespace | Install |
+|------|---------|---------|-----------------|---------|
+| `bmad-tools` | 0.2.0 | Workflow utilities (validate, status, complexity, lessons, audit) | `/bmad-tools:*` | `/plugin install ./plugins/bmad-tools` |
+| `bmad-ui` | 0.1.0 | UI/UX-specialized skills + reviewer agent | `/bmad-ui:*` | `/plugin install ./plugins/bmad-ui` |
+| `bmad-console` | 0.2.0 | Real-time web dashboard (phases, decisions, sprint, network) | n/a -- run via Node | `node plugins/bmad-console/bin/start.cjs` |
+| `bmad-statusline` | 0.1.0 | Claude Code statusline with BMAD-specific signals | n/a -- statusline | edit `.claude/settings.json` (see below) |
+
+### bmad-tools
+
+Seven skills and two hooks for the maintenance side of a BMAD project -- validating artifacts, checking decisions, scoring complexity before assembly, harvesting lessons from retrospectives, and migrating story formats.
+
+Skills:
+
+- `/bmad-tools:validate-artifact` -- run a single artifact through the matching quality gate
+- `/bmad-tools:project-status` -- summarize the current phase, gates, agents, and pending approvals
+- `/bmad-tools:score-complexity` -- score a request across the five complexity dimensions before team assembly
+- `/bmad-tools:extract-lessons` -- harvest lessons-learned entries from reviews and retrospectives
+- `/bmad-tools:audit-decisions` -- check that every D-ID is referenced through the artifact chain
+- `/bmad-tools:schema-doctor` -- diagnose and repair drifted artifact frontmatter / schemas
+- `/bmad-tools:migrate-stories` -- bulk-migrate story files between schema versions
+
+```bash
+/plugin install ./plugins/bmad-tools
+```
+
+### bmad-ui
+
+UI/UX-specialized skills plus a dedicated reviewer identity. Use it on any phase that produces visual or interaction artifacts.
+
+Skills:
+
+- `/bmad-ui:design-tokens` -- author / lint a design-token set (color, type, space, motion)
+- `/bmad-ui:scaffold-ui-story` -- generate a UI-flavored story with screen states and a11y acceptance criteria
+- `/bmad-ui:component-spec` -- write a component spec (props, states, variants, a11y notes) for the developer
+- `/bmad-ui:a11y-review` -- WCAG-focused review pass over an implemented component or page
+
+Agent:
+
+- `@bmad-ui:ux-reviewer` -- adversarial UX reviewer identity; pairs with the standard `reviewer` for visual / interaction work
+
+```bash
+/plugin install ./plugins/bmad-ui
+```
+
+### bmad-console
+
+A real-time web dashboard for watching an autonomous BMAD run unfold. Editorial-meets-mission-control aesthetic -- paper default with an inverse mode, Source Serif 4 for prose, JetBrains Mono for IDs and code. The console reads `artifacts/` and `project.yaml` directly; no server-side state.
+
+Views:
+
+- **Dashboard** -- phase ribbon (Ideation -> Delivery), live agent roster, autonomy mode, pending approvals, "since you left" digest of what changed since your last visit
+- **Decisions** -- decision cartouches for every D-ID with the full chain (brief -> PRD -> architecture -> story -> review)
+- **Sprint** -- Gantt of the current sprint with dependency arrows between stories and gate markers
+- **Network** -- decision network graph showing how D-IDs connect across artifacts
+- **Replay** -- scrubber over the project's artifact history; rewind to any prior state of the run
+
+Empty / brand-new projects fall through to a demo mode with seeded fixtures so the views are explorable before you have real artifacts.
+
+```bash
+node plugins/bmad-console/bin/start.cjs
+# open http://127.0.0.1:5173
+```
+
+### bmad-statusline
+
+A Claude Code statusline that surfaces BMAD-specific signals on every prompt. ~44ms cold spawn so it does not slow the prompt loop; honors `NO_COLOR`.
+
+Output format:
+
+```
+my-project · design · auto · 1 pending · 4 agents · D-042
+```
+
+Fields, left to right: project name, current phase, autonomy mode, pending human approvals, active agent count, last decision ID.
+
+Install by pointing your `.claude/settings.json` `statusLine` at the bundled binary:
+
+```json
+{
+  "statusLine": {
+    "type": "command",
+    "command": "node plugins/bmad-statusline/bin/statusline.cjs"
+  }
+}
+```
+
+### Why these and not generic plugins?
+
+Most AI-tool UX plugins surface tool-shaped signals -- model name, working directory, token usage, file diffs. Those are useful, but they tell you nothing about whether your run is healthy on its own terms. These four packs surface BMAD-shaped signals instead: which phase you are in, which decisions have been made and where they flow, which agents are alive, which gates are pending, whether you are in `auto` / `guided` / `collaborative`. That is the layer BMAD makes first-class, and it is the layer the human supervising an autonomous run actually needs.
+
+A longer treatment of the visual and interaction language used across the console and statusline lives in the design language doc generated locally during development at `artifacts/design/bmad-console-design-language.md` (gitignored, so it is not a stable upstream link).
+
 ## How It Works
 
 BMAD Swarm works by generating configuration files that Claude Code reads automatically. The agent definitions in `.claude/agents/`, hooks in `.claude/hooks/`, and rules in `.claude/rules/` are all standard Claude Code features -- bmad-swarm just generates them with the right content.

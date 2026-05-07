@@ -153,6 +153,25 @@ function buildState(projectRoot) {
     stories.push(parsers.parseStory(content, f));
   }
 
+  // --- Sprint plan / dependencies ------------------------------------------
+  const sprintPlanContent = safeRead(path.join(artifactsDir, 'implementation', 'sprint-plan.md')) || '';
+  const sprintPlan = parsers.parseSprintPlan(sprintPlanContent);
+  const dependencies = sprintPlan.dependencies || {};
+
+  // If sprint-plan supplied a track for a story we couldn't infer from filename,
+  // backfill it onto the story.
+  if (sprintPlan.tracks && sprintPlan.tracks.length) {
+    const idToTrack = new Map();
+    for (const t of sprintPlan.tracks) {
+      for (const s of t.stories || []) idToTrack.set(s.id, t.letter);
+    }
+    for (const story of stories) {
+      if (!story.track && idToTrack.has(story.id)) {
+        story.track = idToTrack.get(story.id);
+      }
+    }
+  }
+
   // --- Reviews --------------------------------------------------------------
   const reviewsDir = path.join(artifactsDir, 'reviews');
   const reviews = [];
@@ -260,6 +279,9 @@ function buildState(projectRoot) {
     agents,
     activity: recentActivity,
     pendingApprovals,
+    dependencies,
+    sprintPlan: { tracks: sprintPlan.tracks || [] },
+    demo: false,
     generatedAt: new Date().toISOString(),
   };
 }

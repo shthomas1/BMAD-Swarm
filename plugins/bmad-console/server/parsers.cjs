@@ -447,19 +447,84 @@ function countMatches(text, re) {
 
 // --- Sprint plan parser -----------------------------------------------------
 
+// Parses the sprint plan markdown into a structured representation.
+//
+// Recognised forms (best-effort, drift-tolerant):
+//   ## Track A: Bug Fixes (9 stories)
+//
+//   | Story | Title | Parallel? | Dependencies |
+//   |-------|-------|-----------|--------------|
+//   | A-BUG-1 | Foo | Yes | None |
+//   | A-BUG-8 | Bar | No  | A-BUG-1 |
+//   | B-MODEL-1 | Baz | No | B-TOKEN-1, B-TOKEN-3 |
+//
+// Returns:
+//   {
+//     tracks: [ { letter, name, storyCount, stories: [ { id, title, dependencies: [] } ] }, ... ],
+//     dependencies: { 'A-BUG-8': ['A-BUG-1'], 'B-MODEL-1': ['B-TOKEN-1', 'B-TOKEN-3'], ... }
+//   }
 function parseSprintPlan(content) {
-  if (!content) return { tracks: [] };
+  if (!content) return { tracks: [], dependencies: {} };
   const tracks = [];
-  // Sections like "## Track A: Bug Fixes (9 stories)"
-  const trackHeaders = [...content.matchAll(/^##\s+Track\s+([A-Z]):\s*([^(]+?)(?:\((\d+)\s+stories\))?\s*$/gm)];
-  for (const h of trackHeaders) {
-    tracks.push({
-      letter: h[1],
-      name: h[2].trim(),
-      storyCount: h[3] ? parseInt(h[3], 10) : null,
+  const dependencies = {};
+
+  // Find all track sections by header position
+  const headerRe = /^##\s+Track\s+([A-Z]):\s*([^(]+?)(?:\((\d+)\s+stor(?:y|ies)\))?\s*$/gm;
+  const headers = [];
+  let m;
+  while ((m = headerRe.exec(content)) !== null) {
+    headers.push({
+      letter: m[1],
+      name: m[2].trim(),
+      storyCount: m[3] ? parseInt(m[3], 10) : null,
+      start: m.index,
+      headerEnd: m.index + m[0].length,
     });
   }
-  return { tracks };
+
+  for (let i = 0; i < headers.length; i++) {
+    const h = headers[i];
+    const sectionEnd = i + 1 < headers.length ? headers[i + 1].start : content.length;
+    const section = content.slice(h.headerEnd, sectionEnd);
+
+    // Extract table rows: lines starting with | that aren't header / separator
+    const stories = [];
+    const lines = section.split(/\r?\n/);
+    for (const ln of lines) {
+      if (!ln.startsWith('|')) continue;
+      // skip separator lines like |-----|
+      if (/^\|\s*[-:]+\s*\|/.test(ln)) continue;
+      const cells = ln.split('|').slice(1, -1).map((c) => c.trim());
+      if (cells.length < 2) continue;
+      // Header row?  First cell == 'Story' or 'story'
+      if (/^story$/i.test(cells[0])) continue;
+      const id = cells[0].replace(/`/g, '').trim();
+      // Story id must look like X-FOO-N
+      if (!/^[A-Z]-[A-Z]+-\d+$/.test(id)) continue;
+      const title = (cells[1] || '').trim();
+      const depsCell = (cells[3] || '').trim();
+      let deps = [];
+      if (depsCell && !/^none$/i.test(depsCell) && depsCell !== '-') {
+        deps = depsCell
+          .split(',')
+          .map((s) => s.replace(/`/g, '').trim())
+          .filter((s) => /^[A-Z]-[A-Z]+-\d+$/.test(s));
+      }
+      stories.push({ id, title, dependencies: deps });
+      if (deps.length > 0) {
+        dependencies[id] = deps;
+      }
+    }
+
+    tracks.push({
+      letter: h.letter,
+      name: h.name,
+      storyCount: h.storyCount,
+      stories,
+    });
+  }
+
+  return { tracks, dependencies };
 }
 
 // --- Sniff approval markers -------------------------------------------------

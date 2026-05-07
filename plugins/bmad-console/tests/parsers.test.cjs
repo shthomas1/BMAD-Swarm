@@ -173,3 +173,88 @@ test('Story parser produces id/track/title from real story file', () => {
   assert.ok(story.title.length > 5);
   assert.ok(story.acceptanceCriteriaCount >= 7, `expected ≥7 ACs, got ${story.acceptanceCriteriaCount}`);
 });
+
+// --- Sprint plan parser ----------------------------------------------------
+
+test('Sprint-plan parser extracts tracks from real sprint-plan.md', () => {
+  const root = stateMod.findProjectRoot(process.cwd()) || path.resolve(__dirname, '..', '..', '..');
+  const planPath = path.join(root, 'artifacts', 'implementation', 'sprint-plan.md');
+  const content = fs.readFileSync(planPath, 'utf8');
+  const plan = parsers.parseSprintPlan(content);
+  assert.ok(Array.isArray(plan.tracks), 'tracks is array');
+  const letters = plan.tracks.map((t) => t.letter).sort();
+  assert.deepEqual(letters, ['A', 'B', 'C']);
+  // Each track has a non-empty stories list
+  for (const t of plan.tracks) {
+    assert.ok(t.stories.length > 0, `track ${t.letter} should have stories`);
+  }
+});
+
+test('Sprint-plan parser extracts dependencies from the table', () => {
+  const root = stateMod.findProjectRoot(process.cwd()) || path.resolve(__dirname, '..', '..', '..');
+  const planPath = path.join(root, 'artifacts', 'implementation', 'sprint-plan.md');
+  const content = fs.readFileSync(planPath, 'utf8');
+  const plan = parsers.parseSprintPlan(content);
+  // A-BUG-8 depends on A-BUG-1
+  assert.deepEqual(plan.dependencies['A-BUG-8'], ['A-BUG-1']);
+  // B-TOKEN-3 depends on B-TOKEN-1
+  assert.deepEqual(plan.dependencies['B-TOKEN-3'], ['B-TOKEN-1']);
+  // B-MODEL-1 depends on B-TOKEN-1 and B-TOKEN-3
+  assert.ok(plan.dependencies['B-MODEL-1']);
+  assert.deepEqual(plan.dependencies['B-MODEL-1'].sort(), ['B-TOKEN-1', 'B-TOKEN-3'].sort());
+});
+
+test('Sprint-plan parser handles synthetic table with mixed deps', () => {
+  const md = [
+    '# Plan',
+    '',
+    '## Track A: Foo (3 stories)',
+    '',
+    '| Story | Title | Parallel? | Dependencies |',
+    '|-------|-------|-----------|--------------|',
+    '| A-FOO-1 | First | Yes | None |',
+    '| A-FOO-2 | Second | No | A-FOO-1 |',
+    '| A-FOO-3 | Third | No | A-FOO-1, A-FOO-2 |',
+    '',
+    '## Track B: Bar (1 story)',
+    '',
+    '| Story | Title | Parallel? | Dependencies |',
+    '|-------|-------|-----------|--------------|',
+    '| B-BAR-1 | Solo | Yes | - |',
+    '',
+  ].join('\n');
+  const plan = parsers.parseSprintPlan(md);
+  assert.equal(plan.tracks.length, 2);
+  assert.equal(plan.tracks[0].stories.length, 3);
+  assert.equal(plan.tracks[1].stories.length, 1);
+  assert.deepEqual(plan.dependencies['A-FOO-2'], ['A-FOO-1']);
+  assert.deepEqual(plan.dependencies['A-FOO-3'].sort(), ['A-FOO-1', 'A-FOO-2'].sort());
+  // No deps for A-FOO-1 or B-BAR-1
+  assert.equal(plan.dependencies['A-FOO-1'], undefined);
+  assert.equal(plan.dependencies['B-BAR-1'], undefined);
+});
+
+test('Sprint-plan parser returns empty object when content is missing', () => {
+  const plan = parsers.parseSprintPlan('');
+  assert.deepEqual(plan, { tracks: [], dependencies: {} });
+});
+
+// --- Demo state shape ------------------------------------------------------
+
+test('Demo state matches v0.1 state shape with the documented sizes', () => {
+  const demo = require('../server/demo-state.cjs').buildDemoState();
+  assert.equal(demo.demo, true);
+  assert.equal(demo.phases.length, 6);
+  assert.equal(demo.decisions.length, 12);
+  assert.equal(demo.stories.length, 14);
+  assert.equal(demo.agents.length, 5);
+  assert.equal(demo.activity.length, 30);
+  assert.ok(demo.pendingApprovals.length >= 1);
+  // Stories cover three tracks
+  const tracks = new Set(demo.stories.map((s) => s.track));
+  assert.ok(tracks.has('A') && tracks.has('B') && tracks.has('C'));
+  // At least one blocked story
+  assert.ok(demo.stories.some((s) => s.status === 'blocked'));
+  // Dependencies populated
+  assert.ok(Object.keys(demo.dependencies).length >= 5);
+});

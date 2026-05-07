@@ -38,8 +38,10 @@
         <span class="dateline" id="dateline">PORTFOLIO · ISSUE Nº — · DATE · AUTONOMY: AUTO</span>
       </div>
       <nav class="masthead-tabs" id="tabs">
-        <button class="tab active" data-view="dashboard">DASHBOARD</button>
-        <button class="tab" data-view="decisions">DECISIONS</button>
+        <button class="tab active" data-tab="dashboard">DASHBOARD</button>
+        <button class="tab" data-tab="decisions">DECISIONS</button>
+        <button class="tab" data-tab="sprint">SPRINT</button>
+        <button class="tab" data-tab="network">NETWORK</button>
         <button class="tab-mode" id="modeToggle" title="paper / inverse">paper / inverse</button>
       </nav>
     </div>
@@ -53,11 +55,16 @@
     </section>
   </main>
 
+  <!-- replay scrubber (dashboard only; toggled by app.js) -->
+  <div id="scrubberWrap" class="scrubber-wrap" aria-label="Replay scrubber"></div>
+
   <footer class="keybar" id="keybar">
     <span><kbd>d</kbd> decisions</span>
-    <span><kbd>s</kbd> stories <em>(v0.2)</em></span>
+    <span><kbd>s</kbd> sprint</span>
+    <span><kbd>n</kbd> network</span>
     <span><kbd>r</kbd> refresh</span>
     <span><kbd>t</kbd> paper/inverse</span>
+    <span><kbd>l</kbd> live</span>
     <span><kbd>?</kbd> help</span>
   </footer>
 

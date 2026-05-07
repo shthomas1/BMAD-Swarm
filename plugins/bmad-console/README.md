@@ -1,12 +1,30 @@
-# BMAD Console v0.1
+# BMAD Console v0.2
 
 A real-time editorial-meets-mission-control dashboard for an autonomous BMAD-Swarm
 project. It renders `artifacts/` as a living document — phase ribbon, decision
-cartouches, agent roster, activity stream — instead of yet another chat log.
+cartouches, agent roster, activity stream, sprint lanes, decision-network graph,
+and a draggable replay scrubber — instead of yet another chat log.
 
 This plugin is local-first, ships zero npm dependencies, and is designed for the
 auto-mode user who walked away for an hour and wants to know within three seconds
 what phase they're in, what's pending approval, and what changed.
+
+## What's new in v0.2
+
+- **Sprint view** — Track A/B/C lanes with story cards and dependency hairlines.
+  Predecessor status colors the arrow: blocked → vermillion, incomplete → amber,
+  complete → rule grey.
+- **Decision Network view** — D-IDs as 28×28 squares in a force-directed graph
+  drawn into a single SVG. Click a node to expand its cartouche; hover to highlight
+  edges. Layout is deterministic (seed = node index, 100 iterations, then frozen),
+  pure-JS, no library.
+- **Replay scrubber** — pinned to the bottom of the Dashboard, above the keybar.
+  Each event is a 2px tick coloured by type. Drag the playhead to any point in
+  the past and the dashboard panels recompute as if it were that moment. The
+  Live button snaps back to present; the play button sweeps from the current
+  playhead to live over five seconds.
+- **Demo mode** (`--demo`) — boot the console with a 12-decision / 14-story
+  synthetic project so anyone forking the repo can see every view fully populated.
 
 ## Screenshots (ASCII)
 
@@ -109,22 +127,52 @@ Flags:
 - `--port <n>` — bind a different TCP port (default 5173).
 - `--host <h>` — bind a different host (default 127.0.0.1; intentionally not 0.0.0.0).
 - `--root <path>` — pass an explicit project root if auto-discovery fails.
+- `--demo` — boot with a synthetic project instead of the local `artifacts/`.
+  Useful for screenshots, code review, or trying the console before adopting BMAD.
+  In demo mode, the file watcher is disabled and the masthead is stamped `[DEMO]`.
 
 ## Views
 
 - **Dashboard** (default) — phase ribbon, current focus + pending approvals,
-  recent decisions, activity stream, agent roster, story-status mini-summary.
+  recent decisions, activity stream, agent roster, story-status mini-summary,
+  and the replay scrubber along the bottom edge.
 - **Decisions** — every D-ID rendered as a cartouche; filter by classification,
   phase, or text.
-- *(v0.2)* **Implementation / Sprint** — Track A/B/C lanes with story cards
-  and dependency hairlines.
-- *(v0.2)* **Decision Network** — force-directed graph of decision references.
+- **Sprint** — Track A/B/C lanes with story cards and dependency arrows. Card
+  border + arrow color reflect predecessor status (vermillion = blocked, amber
+  = predecessor not yet complete, rule grey = clean). Empty state points the
+  reader at `/bmad-tools:scaffold-ui-story`.
+- **Network** — D-IDs as 28×28 paper squares in a force-directed graph (single
+  SVG, deterministic seed, 100 iterations, frozen on render). Strategic = phosphor
+  wash, Tactical = paper, Operational = ink-muted wash. Hover to highlight
+  neighbours; click a node to expand its cartouche underneath. Edges are
+  bidirectional reference relationships.
+
+## Replay scrubber
+
+A 36px stripe pinned above the keybar on the Dashboard view. Each timed event
+in the project (decisions, story updates, reviews, file changes) is a 2px tick
+on the stripe coloured by type:
+
+- decision → phosphor
+- story → ink-muted
+- review → amber
+- file → faint rule
+
+The phosphor playhead is draggable. When it's not at the present, the
+dashboard reconstructs its panels from the subset of state with timestamp ≤ the
+playhead position, and a `VIEWING HISTORY` banner appears above the canvas. The
+LIVE button snaps back to present; the ▶ button sweeps the playhead from the
+current position to live over five seconds.
 
 ## Keyboard shortcuts
 
 - `d` — decisions view
-- `s` — stories view (v0.2)
+- `s` — sprint view
+- `n` — network view
+- `h` — dashboard
 - `r` — refresh state from server
+- `l` — return to live (scrubber)
 - `t` — toggle paper / inverse mode
 - `?` — help
 - `Esc` — dismiss the "since you left" digest
@@ -147,8 +195,6 @@ minimal indent-based parser (no `js-yaml` — stdlib only).
 
 ## Distinguishing features
 
-The seven elements that make this Console look like nothing else:
-
 1. **Phase Ribbon** — a vertical stack of named "stations" down the left edge
    showing the project's six phases. No other AI tool has phases.
 2. **Decision Cartouche** — each D-ID renders as a paper card with a tilted
@@ -156,21 +202,24 @@ The seven elements that make this Console look like nothing else:
    and hairline "Affects:" footer.
 3. **Roster Panel** — a vertical list of agents with 7px square status dots
    (work/idle/-). Squares not circles, because circles read as social avatars.
-4. **Sprint Lane** — *(deferred to v0.2)* — Track A/B/C as horizontal lanes.
+4. **Sprint Lane** *(v0.2)* — Track A/B/C/cross-cutting lanes with 180×64
+   story cards, dependency arrows whose colour reflects predecessor status,
+   and an in-progress glyph that pulses on the phosphor budget.
 5. **Editorial Masthead** — project name in display serif, dateline in mono,
    issue number = decision count.
 6. **Quality-Gate Stamp** — pending PRD/architecture approval renders as an
    amber rotated stencil tag overlaid on the pending list.
 7. **"Since I Last Looked" Digest** — boots into a cold-open digest panel when
    `localStorage.bmad_last_visit` is older than 5 minutes. Counts decisions,
-   stories, reviews since the last visit + lists pending approvals. The flagship
-   auto-mode feature.
+   stories, reviews since the last visit + lists pending approvals.
+8. **Decision Network** *(v0.2)* — force-directed map of D-ID cross-references.
+   Clusters of connected decisions read as cohesive subsystems; orphan nodes
+   stand out as decisions worth reconciling.
+9. **Replay Scrubber** *(v0.2)* — drag the playhead and the dashboard rewinds.
+   The flagship auto-mode time-travel feature.
 
-## Known limitations / TODO(v0.2)
+## Known limitations / TODO(v0.3)
 
-- The Implementation / Sprint view is a placeholder; the dashboard's
-  story-status mini-summary covers the basics in v0.1.
-- The Decision Network view is not implemented yet — see "v0.2 roadmap".
 - Phase-status detection is best-effort: a phase whose required artifacts all
   exist but where `project.yaml.phase` doesn't agree is classified by
   `project.yaml`.
@@ -178,12 +227,15 @@ The seven elements that make this Console look like nothing else:
   directories may take an extra polling cycle.
 - The roster's "last activity" heuristic is a directory-name match, not a real
   workflow signal. This is good enough for the auto-mode glance.
+- Replay scrubber state reconstruction relies on whatever timestamps live in
+  the artifacts. Stories without per-status timestamps are projected via their
+  earliest activity event; this is a best-effort proxy, not a true history log.
 
-## v0.2 roadmap
+## v0.3 roadmap
 
-- Implementation / Sprint view (Track A/B/C lanes with dependency hairlines).
-- Decision Network (force-directed) view.
-- Stories view with full per-story drill-down.
+- Stories view with full per-story drill-down (acceptance criteria, ACs ticked,
+  review history).
 - Phase ribbon click-to-filter on the canvas.
 - Quality-gate stamp graphics for the phase ribbon, not just the pending list.
 - Per-cartouche expand-in-place with the full decision body and ADR link.
+- Network view filters by classification + phase.

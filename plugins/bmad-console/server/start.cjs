@@ -7,9 +7,10 @@ const path = require('path');
 const url = require('url');
 
 const { buildState, findProjectRoot } = require('./state.cjs');
+const demoState = require('./demo-state.cjs');
 
 function parseArgs(argv) {
-  const out = { port: 5173, host: '127.0.0.1' };
+  const out = { port: 5173, host: '127.0.0.1', demo: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--port' && argv[i + 1]) {
@@ -20,6 +21,8 @@ function parseArgs(argv) {
       out.host = argv[++i];
     } else if (a === '--root' && argv[i + 1]) {
       out.root = argv[++i];
+    } else if (a === '--demo') {
+      out.demo = true;
     }
   }
   return out;
@@ -29,13 +32,18 @@ function start(opts = {}) {
   const args = parseArgs(process.argv);
   const port = opts.port || args.port;
   const host = opts.host || args.host;
+  const demo = opts.demo || args.demo;
   const startDir = opts.root || args.root || process.cwd();
 
-  const projectRoot = findProjectRoot(startDir);
-  if (!projectRoot) {
-    console.error('bmad-console: could not find swarm.yaml or project.yaml in', startDir, 'or any ancestor.');
-    console.error('  Run from inside a BMAD-Swarm project, or pass --root <path>.');
-    process.exit(2);
+  let projectRoot = null;
+  if (!demo) {
+    projectRoot = findProjectRoot(startDir);
+    if (!projectRoot) {
+      console.error('bmad-console: could not find swarm.yaml or project.yaml in', startDir, 'or any ancestor.');
+      console.error('  Run from inside a BMAD-Swarm project, or pass --root <path>.');
+      console.error('  Or run with --demo to use a synthetic dataset.');
+      process.exit(2);
+    }
   }
 
   const startupTs = Date.now();
@@ -56,6 +64,9 @@ function start(opts = {}) {
   }
 
   function snapshotState() {
+    if (demo) {
+      return demoState.buildDemoState();
+    }
     try {
       return buildState(projectRoot);
     } catch (e) {
@@ -66,6 +77,7 @@ function start(opts = {}) {
   // --- file watcher ---------------------------------------------------------
   // Recursive watching is platform-specific. On win32 + darwin recursive=true
   // works; on linux we walk and watch each subdir. Either way we coalesce.
+  // Skip entirely in demo mode — there are no real artifacts to watch.
   let coalesceTimer = null;
   function onFsChange(eventType, filename) {
     if (!filename) return;
@@ -76,27 +88,29 @@ function start(opts = {}) {
     }, 80);
   }
 
-  const artifactsDir = path.join(projectRoot, 'artifacts');
-  try {
-    if (process.platform === 'win32' || process.platform === 'darwin') {
-      fs.watch(artifactsDir, { recursive: true }, onFsChange);
-    } else {
-      // best-effort flat watch on subdirs
-      const watch = (dir) => {
+  if (!demo) {
+    const artifactsDir = path.join(projectRoot, 'artifacts');
+    try {
+      if (process.platform === 'win32' || process.platform === 'darwin') {
+        fs.watch(artifactsDir, { recursive: true }, onFsChange);
+      } else {
+        // best-effort flat watch on subdirs
+        const watch = (dir) => {
+          try {
+            fs.watch(dir, (ev, fn) => onFsChange(ev, path.relative(artifactsDir, path.join(dir, fn || ''))));
+          } catch {}
+        };
+        watch(artifactsDir);
         try {
-          fs.watch(dir, (ev, fn) => onFsChange(ev, path.relative(artifactsDir, path.join(dir, fn || ''))));
+          for (const e of fs.readdirSync(artifactsDir, { withFileTypes: true })) {
+            if (e.isDirectory()) watch(path.join(artifactsDir, e.name));
+          }
         } catch {}
-      };
-      watch(artifactsDir);
-      try {
-        for (const e of fs.readdirSync(artifactsDir, { withFileTypes: true })) {
-          if (e.isDirectory()) watch(path.join(artifactsDir, e.name));
-        }
-      } catch {}
+      }
+    } catch (e) {
+      // not fatal — server still serves snapshot on poll
+      console.warn('bmad-console: fs.watch failed —', e.message);
     }
-  } catch (e) {
-    // not fatal — server still serves snapshot on poll
-    console.warn('bmad-console: fs.watch failed —', e.message);
   }
 
   // heartbeats every 15s
@@ -156,6 +170,11 @@ function start(opts = {}) {
       return;
     }
     if (pathname === '/api/file') {
+      if (demo) {
+        res.writeHead(404);
+        res.end('not found (demo mode)');
+        return;
+      }
       const requested = u.query.path || '';
       if (typeof requested !== 'string' || requested.includes('..') || path.isAbsolute(requested)) {
         res.writeHead(400);
@@ -212,11 +231,12 @@ function start(opts = {}) {
       (initial.phases || []).find((p) => p.status === 'active') ||
       (initial.phases || [])[((initial.phases || []).length - 1) | 0];
     const artifactCount = (initial.activity || []).length;
-    console.log('BMAD Console');
+    console.log('BMAD Console' + (demo ? ' [DEMO]' : ''));
     console.log(`listening on http://${host}:${port}`);
     console.log(`project:    ${initial.project ? initial.project.name : 'unknown'}`);
     console.log(`phase:      ${phaseName ? phaseName.name : 'unknown'}`);
     console.log(`artifacts:  ${artifactCount}`);
+    if (demo) console.log('mode:       demo (synthetic dataset; file watcher disabled)');
     console.log('press ctrl+c to stop');
   });
 
