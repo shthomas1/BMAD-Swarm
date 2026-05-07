@@ -1,0 +1,26 @@
+{
+  "PreToolUse": [
+    {
+      "matcher": "Edit|Write",
+      "hooks": [
+        {
+          "type": "command",
+          "command": "node \"${CLAUDE_PLUGIN_DIR}/hooks/validate-artifact.cjs\""
+        }
+      ]
+    }
+  ],
+  "_disabled_audit_decisions": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_DIR}/hooks/audit-decisions.cjs\""
+          }
+        ]
+      }
+    ]
+  }
+}
