@@ -122,6 +122,20 @@ function openEventStream() {
       })
       .catch(() => {});
   });
+  es.addEventListener('write', () => {
+    // A writer-mode write happened (this tab or another). Re-fetch state so
+    // the dashboard / phase ribbon picks up the new content.
+    fetch('/api/state', { cache: 'no-store' })
+      .then((r) => r.json())
+      .then((s) => {
+        state = s;
+        decorateForDemo();
+        recomputeTimelineBounds();
+        viewState = isLive() ? state : projectStateAt(playheadMs);
+        renderAll();
+      })
+      .catch(() => {});
+  });
   es.addEventListener('heartbeat', () => {});
 }
 
@@ -220,10 +234,63 @@ function renderView(oldDecIds, oldActKeys) {
     canvas.appendChild(renderSprintView());
   } else if (view === 'network') {
     canvas.appendChild(renderNetworkView());
+  } else if (view === 'writer') {
+    // Writer view is rendered async — its module is dynamically imported on
+    // first use so the rest of the dashboard stays as a single bundle.
+    const placeholder = document.createElement('div');
+    placeholder.className = 'writer';
+    placeholder.innerHTML = '<div class="writer-loading">loading writer…</div>';
+    canvas.appendChild(placeholder);
+    import('./views/writer.js').then((mod) => {
+      mod.renderWriter(placeholder, {
+        state: viewState,
+        writeArtifact,
+        transitionGate,
+        readArtifact,
+      });
+    }).catch((e) => {
+      placeholder.innerHTML = `<pre class="writer-error">writer failed to load: ${escapeHtml(String(e))}</pre>`;
+    });
   }
 
   // Scrubber visibility — only on the dashboard
   $('#scrubberWrap').classList.toggle('hidden', view !== 'dashboard');
+}
+
+// --- Writer mode helpers (used by the writer view modules) -----------------
+
+async function writeArtifact(p, content) {
+  const r = await fetch('/api/artifact', {
+    method: 'PUT',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ path: p, content }),
+  });
+  if (!r.ok) {
+    let detail = '';
+    try { detail = (await r.json()).error || ''; } catch {}
+    throw new Error(`write failed (${r.status}): ${detail}`);
+  }
+  return r.json();
+}
+
+async function transitionGate(phase, action, note) {
+  const r = await fetch('/api/gate', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ phase, action, note }),
+  });
+  if (!r.ok) {
+    let detail = '';
+    try { detail = (await r.json()).error || ''; } catch {}
+    throw new Error(`gate failed (${r.status}): ${detail}`);
+  }
+  return r.json();
+}
+
+async function readArtifact(p) {
+  const r = await fetch('/api/file?path=' + encodeURIComponent(p), { cache: 'no-store' });
+  if (!r.ok) return '';
+  return r.text();
 }
 
 function bindTabs() {
@@ -241,13 +308,14 @@ function bindKeys() {
     if (e.key === 'd') { setView('decisions'); }
     else if (e.key === 's') { setView('sprint'); }
     else if (e.key === 'n') { setView('network'); }
+    else if (e.key === 'w') { setView('writer'); }
     else if (e.key === 'h') { setView('dashboard'); }
     else if (e.key === 'l') { goLive(); }
     else if (e.key === 'r') { fetch('/api/state', { cache: 'no-store' }).then(r => r.json()).then(s => { state = s; decorateForDemo(); recomputeTimelineBounds(); viewState = isLive() ? state : projectStateAt(playheadMs); renderAll(); }); }
     else if (e.key === 't') { toggleMode(); }
     else if (e.key === '?') {
       alert(
-        'BMAD Console v0.2\n\nKeys:\n  d  decisions view\n  s  sprint view\n  n  network view\n  h  dashboard\n  r  refresh\n  l  return to live (scrubber)\n  t  paper/inverse\n  ?  this help'
+        'BMAD Console v0.3\n\nKeys:\n  d  decisions view\n  s  sprint view\n  n  network view\n  w  writer view\n  h  dashboard\n  r  refresh\n  l  return to live (scrubber)\n  t  paper/inverse\n  ?  this help'
       );
     }
     else if (e.key === 'Escape') {

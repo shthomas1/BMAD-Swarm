@@ -8,9 +8,10 @@ const url = require('url');
 
 const { buildState, findProjectRoot } = require('./state.cjs');
 const demoState = require('./demo-state.cjs');
+const writer = require('./writer.cjs');
 
 function parseArgs(argv) {
-  const out = { port: 5173, host: '127.0.0.1', demo: false };
+  const out = { port: 5173, host: '127.0.0.1', demo: false, agentsEnabled: false };
   for (let i = 2; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--port' && argv[i + 1]) {
@@ -23,6 +24,8 @@ function parseArgs(argv) {
       out.root = argv[++i];
     } else if (a === '--demo') {
       out.demo = true;
+    } else if (a === '--enable-agents') {
+      out.agentsEnabled = true;
     }
   }
   return out;
@@ -30,9 +33,10 @@ function parseArgs(argv) {
 
 function start(opts = {}) {
   const args = parseArgs(process.argv);
-  const port = opts.port || args.port;
+  const port = opts.port !== undefined ? opts.port : args.port;
   const host = opts.host || args.host;
   const demo = opts.demo || args.demo;
+  const agentsEnabled = opts.agentsEnabled || args.agentsEnabled;
   const startDir = opts.root || args.root || process.cwd();
 
   let projectRoot = null;
@@ -63,6 +67,19 @@ function start(opts = {}) {
     }
   }
 
+  function broadcastWrite(payload) {
+    const msg = `event: write\ndata: ${JSON.stringify(payload)}\n\n`;
+    for (const res of sseClients) {
+      try {
+        res.write(msg);
+      } catch {
+        // ignore
+      }
+    }
+    // Also fan out a generic change event so existing v0.2 listeners refresh.
+    broadcastChange({ path: payload.path || '', eventType: 'write' });
+  }
+
   function snapshotState() {
     if (demo) {
       return demoState.buildDemoState();
@@ -88,16 +105,22 @@ function start(opts = {}) {
     }, 80);
   }
 
+  const watchers = [];
   if (!demo) {
     const artifactsDir = path.join(projectRoot, 'artifacts');
     try {
       if (process.platform === 'win32' || process.platform === 'darwin') {
-        fs.watch(artifactsDir, { recursive: true }, onFsChange);
+        const w = fs.watch(artifactsDir, { recursive: true }, onFsChange);
+        // Async errors (e.g. dir rm'd while server is still up) shouldn't crash.
+        w.on('error', () => {});
+        watchers.push(w);
       } else {
         // best-effort flat watch on subdirs
         const watch = (dir) => {
           try {
-            fs.watch(dir, (ev, fn) => onFsChange(ev, path.relative(artifactsDir, path.join(dir, fn || ''))));
+            const w = fs.watch(dir, (ev, fn) => onFsChange(ev, path.relative(artifactsDir, path.join(dir, fn || ''))));
+            w.on('error', () => {});
+            watchers.push(w);
           } catch {}
         };
         watch(artifactsDir);
@@ -125,9 +148,24 @@ function start(opts = {}) {
 
   // --- HTTP -----------------------------------------------------------------
 
-  const server = http.createServer((req, res) => {
+  const server = http.createServer(async (req, res) => {
     const u = url.parse(req.url, true);
     const pathname = u.pathname;
+
+    // Writer endpoints (PUT /api/artifact, POST /api/gate). These short-circuit
+    // the rest of the dispatcher when matched.
+    if (
+      (pathname === '/api/artifact' && req.method === 'PUT') ||
+      (pathname === '/api/gate' && req.method === 'POST')
+    ) {
+      const handled = await writer.handleWriterRequest(req, res, {
+        projectRoot,
+        demo,
+        agentsEnabled,
+        broadcast: broadcastWrite,
+      });
+      if (handled !== false) return;
+    }
 
     if (req.method !== 'GET') {
       res.writeHead(405);
@@ -145,6 +183,21 @@ function start(opts = {}) {
     }
     if (pathname === '/app.js') {
       serveStatic(res, path.join(webDir, 'app.js'), 'application/javascript; charset=utf-8', startupTs);
+      return;
+    }
+    // Serve writer-mode JS modules. Path-traversal-safe: only the explicit
+    // subdirs we know about, only .js files, no '..' segments.
+    if (
+      pathname.startsWith('/views/') ||
+      pathname.startsWith('/components/')
+    ) {
+      const safe = pathname.replace(/^\/+/, '');
+      if (safe.includes('..') || !safe.endsWith('.js')) {
+        res.writeHead(403);
+        res.end('forbidden');
+        return;
+      }
+      serveStatic(res, path.join(webDir, safe), 'application/javascript; charset=utf-8', startupTs);
       return;
     }
     if (pathname === '/api/state') {
@@ -225,6 +278,14 @@ function start(opts = {}) {
     });
   }
 
+  // Close watchers when the server closes so tests / programmatic shutdowns
+  // don't leak fs.watch handles.
+  server.on('close', () => {
+    for (const w of watchers) {
+      try { w.close(); } catch {}
+    }
+  });
+
   server.listen(port, host, () => {
     const initial = snapshotState();
     const phaseName =
@@ -237,6 +298,7 @@ function start(opts = {}) {
     console.log(`phase:      ${phaseName ? phaseName.name : 'unknown'}`);
     console.log(`artifacts:  ${artifactCount}`);
     if (demo) console.log('mode:       demo (synthetic dataset; file watcher disabled)');
+    if (agentsEnabled) console.log('agents:     enabled (subprocess invocation; --enable-agents)');
     console.log('press ctrl+c to stop');
   });
 

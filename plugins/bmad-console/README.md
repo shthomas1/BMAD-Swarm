@@ -1,13 +1,62 @@
-# BMAD Console v0.2
+# BMAD Console v0.3
 
 A real-time editorial-meets-mission-control dashboard for an autonomous BMAD-Swarm
 project. It renders `artifacts/` as a living document — phase ribbon, decision
 cartouches, agent roster, activity stream, sprint lanes, decision-network graph,
-and a draggable replay scrubber — instead of yet another chat log.
+draggable replay scrubber, and a per-phase **writer** that drives the project
+forward — instead of yet another chat log.
 
 This plugin is local-first, ships zero npm dependencies, and is designed for the
 auto-mode user who walked away for an hour and wants to know within three seconds
-what phase they're in, what's pending approval, and what changed.
+what phase they're in, what's pending approval, and what changed — and now wants
+to *do work* without dropping back to the terminal.
+
+## What's new in v0.3
+
+- **Writer mode** — a fifth top-level tab. The console can now create and edit
+  the artifacts that drive each BMAD phase, not just visualize them.
+  - **Ideation writer** (full): a paper writing surface with a 640px column,
+    Source Serif 4 prose, and a sidebar of structured prompts ("Who's it for?",
+    "What problem does it solve?", "Why now?", "What does v1 look like?"). The
+    composed brief autosaves to `artifacts/planning/product-brief.md` 500ms
+    after the last keystroke. A "Mark ready for exploration" CTA flips
+    `project.yaml.phase` after a confirmation modal.
+  - **Definition writer** (full): a three-column PRD builder — Problem, Users,
+    Functional Requirements, Non-Functional Requirements, Success Criteria.
+    FRs are drag-reorderable cards (HTML5 drag-drop, no library) that
+    auto-renumber on drop. Each FR has an inline AC sub-list. Autosaves the
+    composed PRD to `artifacts/planning/prd.md`. "Mark PRD ready" surfaces it
+    to the approval panel after a required-section validation.
+  - **Approval panel**: pending PRD / architecture approvals render as
+    paper "PENDING" cards in a right rail. "Approve" appends an
+    `Approved-by: <user>` block; "Send back" surfaces an inline note input
+    that writes a `Status: needs-revision` block.
+  - **Stub writers**: Exploration / Design / Implementation / Delivery each
+    show a paper "v0.4 coming" card describing what the writer will look
+    like. The CLI is the workflow for those phases for now.
+- **New server endpoints**:
+  - `PUT /api/artifact` — body `{ path, content }` → writes the file. Path
+    must match the allowlist (planning/product-brief.md, planning/prd.md,
+    exploration/*.md, design/architecture.md, design/decisions/adr-*.md,
+    implementation/stories/story-*.md). Anything else → 403. `..`, absolute
+    paths, and Windows-style backslashes are rejected. Demo mode is
+    read-only and returns 403.
+  - `POST /api/gate` — body `{ phase, action, note? }`.
+    - `action: "pass"` updates `project.yaml.phase` (preserving other
+      top-level keys via a line-based rewrite) and sets
+      `status: in-progress`.
+    - `action: "approve"` appends `Approved-by: <user>` +
+      `Approved-on: <ISO>` to the relevant artifact (`prd.md` for
+      `phase=definition`, `architecture.md` for `phase=design`).
+    - `action: "needs-revision"` appends a `Status: needs-revision` block
+      with the note. `<user>` comes from `process.env.USER || USERNAME`.
+- **SSE `write` event**: every successful artifact write fan-outs a
+  `data: { type, path, action }` event so other open browser tabs (and the
+  Dashboard view in the same tab) refresh state automatically.
+- **`--enable-agents` flag** (off by default, scaffolding only in v0.3):
+  reserves the wire for subprocess `claude -p` invocation. The actual
+  agent-invoker subprocess shell ships in v0.4 — this v0.3 build records
+  the flag and surfaces it in the boot banner without spawning anything.
 
 ## What's new in v0.2
 
@@ -129,7 +178,14 @@ Flags:
 - `--root <path>` — pass an explicit project root if auto-discovery fails.
 - `--demo` — boot with a synthetic project instead of the local `artifacts/`.
   Useful for screenshots, code review, or trying the console before adopting BMAD.
-  In demo mode, the file watcher is disabled and the masthead is stamped `[DEMO]`.
+  In demo mode, the file watcher is disabled, the writer endpoints reject all
+  writes with 403, and the masthead is stamped `[DEMO]`.
+- `--enable-agents` — reserve the wire for subprocess agent invocation
+  (v0.4). Off by default. v0.3 only records the flag in the boot banner; no
+  subprocess is spawned until the v0.4 agent-invoker ships. **Security note**:
+  even when enabled in v0.4, the server will still bind 127.0.0.1 only and
+  require localhost calls; do not expose this server to a network you don't
+  trust.
 
 ## Views
 
@@ -147,6 +203,58 @@ Flags:
   wash, Tactical = paper, Operational = ink-muted wash. Hover to highlight
   neighbours; click a node to expand its cartouche underneath. Edges are
   bidirectional reference relationships.
+- **Writer** *(v0.3)* — per-phase writing surfaces. Two are full (Ideation,
+  Definition); the other four (Exploration, Design, Implementation, Delivery)
+  show "v0.4 coming" stubs and tell you to use the CLI for now. A right-rail
+  approval panel surfaces any artifact that lacks an `Approved-by:` line.
+
+## Writer mode (v0.3)
+
+Click `WRITER` (or press `w`) to enter writer mode. The view has three columns:
+
+1. **Phase strip** (left): six phases mirroring the dashboard ribbon. The
+   project's current phase is marked with a `◉`. Click any phase to load its
+   writer.
+2. **Canvas** (center): the active writer.
+   - **Ideation** is a single-column paper surface plus a sidebar of structured
+     prompts. Whatever you type composes a coherent
+     `artifacts/planning/product-brief.md` and autosaves 500ms after you stop
+     typing. The "Mark ready for exploration" button asks for confirmation, then
+     transitions `project.yaml.phase` via `POST /api/gate`.
+   - **Definition** is a structured PRD builder. Functional Requirements are
+     drag-reorderable cards that auto-renumber (FR-1, FR-2, …) on drop; each
+     has a sub-list of Given/When/Then acceptance criteria. NFRs use a
+     simpler card with a `Target:` field. Autosaves to
+     `artifacts/planning/prd.md`. "Mark PRD ready" validates the required
+     sections (Problem / Users / FR / Success) and then surfaces the PRD to
+     the approval panel.
+   - The other four phases show a centered "v0.4 coming" card; use the CLI for
+     those phases for now.
+3. **Approval rail** (right): pending PRD / architecture approvals render as
+   "PENDING" stamp cards. Approve → appends `Approved-by: <user>`. Send back →
+   inline note form, then writes a `Status: needs-revision` block. The user is
+   read from `process.env.USER` or `USERNAME` on the server.
+
+### Autosave behaviour
+
+- Every textarea is debounced 500ms after the last keystroke. After a brief
+  "saving…" pip the status flips to "saved".
+- The whole writer composes one coherent markdown file per save — the writer
+  UI is the source of truth. **If you hand-edit `prd.md` in your text editor
+  while the writer is open, your edits will be clobbered on the next
+  autosave.** Treat git as the history layer.
+- Multiple browser tabs editing the same artifact are last-write-wins. Other
+  tabs receive an SSE `write` event and re-fetch state, so the dashboard
+  always reflects the latest committed copy.
+
+### What this isn't
+
+- **Not collaborative.** Single-user only. There is no presence, no operational
+  transform, no conflict resolution.
+- **No authentication.** The server binds 127.0.0.1 only and is intended for
+  use on the same machine as the project. Do not expose it.
+- **No spell/syntax check** in the writer. Use `bmad-tools:validate-artifact`.
+- **No drafts / version history.** Use git.
 
 ## Replay scrubber
 
@@ -170,6 +278,7 @@ current position to live over five seconds.
 - `d` — decisions view
 - `s` — sprint view
 - `n` — network view
+- `w` — writer view
 - `h` — dashboard
 - `r` — refresh state from server
 - `l` — return to live (scrubber)

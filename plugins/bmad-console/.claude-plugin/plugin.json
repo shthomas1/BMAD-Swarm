@@ -1,6 +1,6 @@
 {
   "name": "bmad-console",
-  "version": "0.2.0",
-  "description": "BMAD-Swarm real-time project console — phase ribbon, decision cartouches, agent roster, activity stream, sprint lanes, decision-network graph, replay scrubber. Editorial-meets-mission-control aesthetic, paper default + inverse mode.",
+  "version": "0.3.0",
+  "description": "BMAD-Swarm real-time project console — phase ribbon, decision cartouches, agent roster, activity stream, sprint lanes, decision-network graph, replay scrubber, and v0.3 writer mode (interactive ideation + PRD builder + approval gates). Editorial-meets-mission-control aesthetic, paper default + inverse mode.",
   "author": { "name": "BMAD-Swarm" }
 }
