@@ -1,0 +1,6 @@
+{
+  "name": "bmad-statusline",
+  "version": "0.1.0",
+  "description": "Claude Code statusline that surfaces BMAD-Swarm project state — phase, autonomy, agent count, pending approvals, last decision ID.",
+  "author": { "name": "BMAD-Swarm" }
+}

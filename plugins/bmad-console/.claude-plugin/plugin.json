@@ -1,0 +1,6 @@
+{
+  "name": "bmad-console",
+  "version": "0.1.0",
+  "description": "BMAD-Swarm real-time project console — phase ribbon, decision cartouches, agent roster, activity stream. Editorial-meets-mission-control aesthetic, paper default + inverse mode.",
+  "author": { "name": "BMAD-Swarm" }
+}
