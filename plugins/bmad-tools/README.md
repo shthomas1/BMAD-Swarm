@@ -1,18 +1,23 @@
 # bmad-tools
 
-A Claude Code plugin pack for BMAD-Swarm projects. Bundles seven skills under the `/bmad-tools:*` namespace plus two hooks that close the highest-friction gaps in the BMAD workflow:
+A Claude Code plugin pack for BMAD-Swarm projects. Bundles eight skills under the `/bmad-tools:*` namespace plus two hooks that close the highest-friction gaps in the BMAD workflow:
 
 - artifact validation (skill + hook)
 - project status dashboard
 - complexity scoring
 - post-epic lessons extraction
 - decision-log auditing (skill + opt-in hook)
-- whole-tree schema drift audit (**new in 0.2.0**)
-- story migration to documented schema (**new in 0.2.0**)
+- whole-tree schema drift audit
+- story migration to documented schema
+- auto-mode session report (**new in 0.3.0**)
 
 Local-first. Marketplace distribution is future work.
 
-**Current version**: `0.2.0`
+**Current version**: `0.3.0`
+
+## What's new in 0.3.0
+
+- **New skill `session-report`**: editorial-style "what happened while I was away" Markdown report covering decisions logged, stories shipped, reviews filed, and pending human attention since a given time window. Default window is "since last commit"; supports duration (`4h`, `2d`) and `YYYY-MM-DD` arguments. Print-only by default; `--apply` writes to `artifacts/reviews/session-report-<date>.md`. Pure skill — no new hooks, no npm dependencies.
 
 ## What's new in 0.2.0
 
@@ -37,7 +42,8 @@ plugins/bmad-tools/
 │   ├── extract-lessons/SKILL.md
 │   ├── audit-decisions/SKILL.md
 │   ├── schema-doctor/SKILL.md      # NEW in 0.2.0
-│   └── migrate-stories/SKILL.md    # NEW in 0.2.0
+│   ├── migrate-stories/SKILL.md    # NEW in 0.2.0
+│   └── session-report/SKILL.md     # NEW in 0.3.0
 └── hooks/
     ├── hooks.json
     ├── validate-artifact.cjs   # ON by default (PreToolUse on Write); advisory by default
@@ -83,6 +89,7 @@ Add the plugin to your project settings so every Claude Code session in this rep
 | `/bmad-tools:audit-decisions` | Walk `decision-log.md` for declared D-IDs (numeric and subdomain like `D-BRN-1`), grep `artifacts/planning\|design\|implementation` for references, report orphans and dangling references. |
 | `/bmad-tools:schema-doctor [--type story\|prd\|architecture\|decision\|all]` | Whole-tree audit: produce a drift heatmap of how far the on-disk artifacts diverge from `methodology/artifact-schemas/`. Read-only. |
 | `/bmad-tools:migrate-stories [--apply] [--glob "<pattern>"]` | Rewrite old-format stories into the documented schema (rename `## Goal` → `## User Story`, insert `## Status:`, stub `## Tasks`). Default dry-run; `--apply` writes. |
+| `/bmad-tools:session-report [<since>] [--apply] [--out <path>]` | Auto-mode "what happened while I was away" — editorial-style Markdown report covering decisions logged, stories shipped, reviews filed, and pending human attention since `<since>` (default: last commit; also accepts durations like `4h`/`2d` or `YYYY-MM-DD`). Print-only by default; `--apply` writes to `artifacts/reviews/session-report-<date>.md`. |
 
 ### Usage examples
 
@@ -98,6 +105,10 @@ Add the plugin to your project settings so every Claude Code session in this rep
 /bmad-tools:schema-doctor --type story
 /bmad-tools:migrate-stories                 # dry-run on every story
 /bmad-tools:migrate-stories --apply         # writes the migration in place
+/bmad-tools:session-report                  # report since last commit (print-only)
+/bmad-tools:session-report 6h               # last 6 hours
+/bmad-tools:session-report 2d --apply       # last 2 days, write to artifacts/reviews/
+/bmad-tools:session-report 2026-05-06 --apply --out artifacts/reviews/morning-recap.md
 ```
 
 ## Hooks

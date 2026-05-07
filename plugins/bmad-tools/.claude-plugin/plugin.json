@@ -1,7 +1,7 @@
 {
   "name": "bmad-tools",
-  "version": "0.2.0",
-  "description": "BMAD-Swarm companion plugin: artifact validation, status dashboard, complexity scoring, lessons extraction, decision-log auditing, schema drift audit, and story migration under the /bmad-tools:* namespace.",
+  "version": "0.3.0",
+  "description": "BMAD-Swarm companion plugin: artifact validation, status dashboard, complexity scoring, lessons extraction, decision-log auditing, schema drift audit, story migration, and auto-mode session reports under the /bmad-tools:* namespace.",
   "author": {
     "name": "BMAD-Swarm"
   },
