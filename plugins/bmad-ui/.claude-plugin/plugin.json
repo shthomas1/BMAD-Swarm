@@ -1,0 +1,8 @@
+{
+  "name": "bmad-ui",
+  "version": "0.1.0",
+  "description": "BMAD-Swarm UI/UX plugin: design tokens, UI story scaffold, component specs, a11y review, and a ux-reviewer identity agent under /bmad-ui:* and @bmad-ui:ux-reviewer.",
+  "author": {
+    "name": "BMAD-Swarm"
+  }
+}
